@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pg-configurator"
+dynamic = ["version"]
+description = "Explainable PostgreSQL configuration candidate generator"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+  { name = "O2eg", email = "oleg.ispu@yandex.ru" },
+]
+keywords = ["postgresql", "configuration", "tuning", "dba"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+  "Topic :: System :: Systems Administration",
+]
+dependencies = [
+  "psutil>=5.9,<8",
+]
+
+[project.optional-dependencies]
+test = [
+  "asyncpg>=0.29,<1",
+  "pytest>=7.4",
+  "tomli>=2.0; python_version < '3.11'",
+]
+dev = [
+  "asyncpg>=0.29,<1",
+  "build>=1.2",
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "ruff>=0.6",
+  "tomli>=2.0; python_version < '3.11'",
+  "twine>=5.1",
+]
+
+[project.scripts]
+pg-configurator = "pg_configurator.__main__:_cli_entrypoint"
+
+[project.urls]
+Homepage = "https://github.com/O2eg/pg_configurator"
+Repository = "https://github.com/O2eg/pg_configurator"
+Issues = "https://github.com/O2eg/pg_configurator/issues"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = { attr = "pg_configurator.version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["pg_configurator*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+pg_configurator = [
+  "pg_settings_history/*.csv",
+  "pg_settings_history/README.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "integration: requires Docker and PostgreSQL client tools",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/integration/test_docker.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pg_configurator"]

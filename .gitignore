@@ -1,0 +1,42 @@
+# Bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging/build artifacts
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Test and coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+tests/output/
+
+# Local configuration and logs
+*.conf
+*.conf.*.bak
+*.log
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

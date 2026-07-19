@@ -1,0 +1,119 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-publish
+  cancel-in-progress: false
+
+jobs:
+  docker-integration:
+    name: Docker integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install PostgreSQL client and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          python -m pip install --upgrade pip '.[test]'
+
+      - name: Run Docker integration tests
+        env:
+          PG_CONFIGURATOR_DOCKER_INTEGRATION: "1"
+        run: pytest -m integration
+
+  build:
+    name: Test and build distributions
+    needs: docker-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.10"
+
+      - name: Install test and build dependencies
+        run: python -m pip install --upgrade pip build twine '.[dev]'
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          package_version="$(python -c 'from pg_configurator import __version__; print(__version__)')"
+          if [[ "${GITHUB_REF_NAME}" != "v${package_version}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package version ${package_version}" >&2
+            exit 1
+          fi
+
+      - name: Run quality gates
+        run: |
+          ruff check .
+          ruff format --check .
+          pytest -m 'not integration'
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Check distribution metadata and README rendering
+        run: python -m twine check dist/*
+
+      - name: Smoke-test the built wheel
+        shell: bash
+        run: |
+          python -m venv "${RUNNER_TEMP}/pg-configurator-wheel-smoke"
+          "${RUNNER_TEMP}/pg-configurator-wheel-smoke/bin/python" -m pip install dist/*.whl
+          "${RUNNER_TEMP}/pg-configurator-wheel-smoke/bin/pg-configurator" --version
+          "${RUNNER_TEMP}/pg-configurator-wheel-smoke/bin/pg-configurator" \
+            --db-cpu=8 --db-ram=16Gi --pg-version=18 --output-format=json \
+            > "${RUNNER_TEMP}/candidate.json"
+          "${RUNNER_TEMP}/pg-configurator-wheel-smoke/bin/python" -m json.tool \
+            "${RUNNER_TEMP}/candidate.json" >/dev/null
+
+      - name: Upload distributions for publishing
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish distributions
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pg-configurator
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Publish distributions with trusted publishing
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1

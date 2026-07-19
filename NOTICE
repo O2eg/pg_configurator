@@ -1,0 +1,10 @@
+pg-configurator copyright and provenance notice
+
+This repository contains work originally developed by Oleg Gurov and Tantor
+Labs. The original copyright notices are retained in LICENSE. The project is
+distributed under the MIT License; publishing it from the O2eg repository does
+not remove or transfer those historical notices.
+
+The bundled pg_settings_history CSV files are generated PostgreSQL server
+configuration snapshots. No third-party workload datasets or binary assets are
+distributed by this package.
