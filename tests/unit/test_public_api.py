@@ -2,6 +2,8 @@ import json
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 from pg_configurator import PGConfigurator, PGConfiguratorResult
@@ -55,8 +57,21 @@ class TestPublicAPI(unittest.TestCase):
             artifact["parameters"]["shared_buffers"]["apply_mode"],
             ("reload", "restart"),
         )
+        self.assertEqual("postmaster", artifact["parameters"]["shared_buffers"]["context"])
+        self.assertEqual(
+            "pg_settings_snapshot",
+            artifact["parameters"]["shared_buffers"]["context_source"],
+        )
+        self.assertEqual("expression", artifact["parameters"]["shared_buffers"]["rule_kind"])
+        self.assertEqual(
+            ["pg_stat_statements", "auto_explain"],
+            [extension["name"] for extension in artifact["extensions"]],
+        )
+        self.assertTrue(
+            all(extension["availability"] == "unverified" for extension in artifact["extensions"])
+        )
 
-    def test_profile_warnings_and_extension_preflight(self):
+    def test_profile_warnings_and_caller_extension_inventory(self):
         configurator = PGConfigurator(self.args, [])
         required_extensions = (
             "auto_explain,online_analyze,pg_stat_statements,pg_store_plans,plantuner"
@@ -71,7 +86,22 @@ class TestPublicAPI(unittest.TestCase):
         artifact = configurator.build_artifact(config)
 
         self.assertTrue(any("disables SSL" in warning for warning in artifact["warnings"]))
+        self.assertTrue(
+            any("caller-declared, not live-verified" in warning for warning in artifact["warnings"])
+        )
         self.assertTrue(any(item["to"] == "profile_1c" for item in artifact["overrides"]))
+        self.assertTrue(
+            all(
+                extension["availability"] == "declared_available"
+                for extension in artifact["extensions"]
+            )
+        )
+        self.assertTrue(
+            all(
+                extension["availability_source"] == "caller_inventory"
+                for extension in artifact["extensions"]
+            )
+        )
 
         with self.assertRaisesRegex(ValueError, "Required extensions are unavailable"):
             configurator.make_conf(
@@ -80,6 +110,28 @@ class TestPublicAPI(unittest.TestCase):
                 pg_version="18",
                 conf_profiles="profile_1c",
                 available_extensions="pg_stat_statements",
+            )
+
+    def test_existing_output_file_is_preserved_as_a_timestamped_backup(self):
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "candidate.json"
+            target.write_text("original", encoding="utf-8")
+
+            run_pgc(
+                [
+                    "--db-cpu=8",
+                    "--db-ram=16Gi",
+                    "--output-format=json",
+                    f"--output-file-name={target}",
+                ]
+            )
+
+            backups = list(target.parent.glob("candidate.json.*.bak"))
+            self.assertEqual(1, len(backups))
+            self.assertEqual("original", backups[0].read_text(encoding="utf-8"))
+            self.assertEqual(
+                "pg_configurator/v1",
+                json.loads(target.read_text(encoding="utf-8"))["schema_version"],
             )
 
     def test_work_mem_concurrency_factor_reduces_setting(self):
@@ -104,6 +156,8 @@ class TestPublicAPI(unittest.TestCase):
         self.assertIn("io_workers", config)
         self.assertIn("io_max_concurrency", config)
         self.assertIn("autovacuum_worker_slots", config)
+        self.assertIn("autovacuum_vacuum_max_threshold", config)
+        self.assertIn("idle_replication_slot_timeout", config)
 
     def test_settings_history_rejects_invalid_requests(self):
         configurator = PGConfigurator(self.args, [])

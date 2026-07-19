@@ -1,36 +1,31 @@
-# Refreshing a PostgreSQL settings snapshot
+# PostgreSQL settings snapshots
 
-The CSV files in this directory contain `pg_settings` snapshots used for
-version compatibility checks and history reports. Generate a snapshot from an
-unmodified official PostgreSQL container.
+The CSV files in this directory describe upstream `pg_settings` defaults for
+every supported PostgreSQL major version. Temporary snapshot clusters preload
+the bundled `pg_stat_statements` and `auto_explain` modules, so their
+version-specific GUCs are captured as well. Snapshots are used for
+compatibility, type and enum validation, apply-mode calculation, and
+settings-history reports.
 
-Example for PostgreSQL 18:
+Each snapshot contains:
+
+- setting, boot value, and unit;
+- `context` and `vartype`;
+- numeric bounds;
+- allowed enum values.
+
+Refresh all snapshots from locally available official PostgreSQL Docker images:
 
 ```bash
-docker pull postgres:18
-docker run --name pg-configurator-snapshot-18 \
-  -v /tmp:/tmp \
-  -e POSTGRES_PASSWORD=temporary-snapshot-container-only \
-  -d postgres:18
-
-docker exec -u postgres pg-configurator-snapshot-18 psql -c "COPY (
-  SELECT
-    name,
-    setting AS value,
-    CASE
-      WHEN unit = '8kB' THEN pg_size_pretty(setting::bigint * 1024 * 8)
-      WHEN unit = 'kB' AND setting <> '-1' THEN pg_size_pretty(setting::bigint * 1024)
-      ELSE ''
-    END AS pretty_value,
-    boot_val,
-    unit
-  FROM pg_settings
-  ORDER BY name
-) TO '/tmp/settings_pg_18.csv' DELIMITER ',' CSV HEADER;"
-
-docker rm -f -v pg-configurator-snapshot-18
+python tools/refresh_pg_settings.py
 ```
 
-Before replacing a bundled file, review the PostgreSQL image provenance and
-diff the new snapshot. Never capture a production server configuration: the
-files are intended to describe upstream defaults, not environment secrets.
+Or refresh selected versions:
+
+```bash
+python tools/refresh_pg_settings.py 14 15 16 17 18
+```
+
+Review the image provenance and resulting diff before committing. The script
+starts only temporary local clusters and never reads a production server, so
+environment-specific settings and secrets cannot enter the package.

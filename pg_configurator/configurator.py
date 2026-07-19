@@ -19,7 +19,14 @@ from pg_configurator.common import (
     get_default_args,
     get_major_version,
 )
-from pg_configurator.conf_common import common_alg_set
+from pg_configurator.conf_common import (
+    EXTENSION_PRELOAD_ORDER,
+    EXTENSION_SPECS,
+    MANDATORY_COMMON_EXTENSIONS,
+    PROFILE_EXTENSION_DEPENDENCIES,
+    common_alg_set,
+    common_profile_alg_sets,
+)
 from pg_configurator.conf_perf import perf_alg_set
 from pg_configurator.conf_profiles import (
     alg_set_1c,
@@ -103,13 +110,10 @@ class UnitConverter:
 
 
 class DutyDB(BasicEnum, Enum):
-    STATISTIC = "statistic"  # Low reliability, fast speed, long recovery
-    # Purely analytical and large aggregations
-    # Transactions may be lost in case of a crash
-    MIXED = "mixed"  # Medium reliability, medium speed, medium recovery
-    # Mostly complicated real time SQL queries
-    FINANCIAL = "financial"  # High reliability, low speed, fast recovery
-    # Billing tasks. Can't lose transactions in case of a crash
+    STATISTIC = "statistic"  # Analytical queries and large aggregations
+    MIXED = "mixed"  # Transactional and analytical queries on one cluster
+    OLTP = "oltp"  # High-concurrency short transactions
+    FINANCIAL = "financial"  # Latency-sensitive transactions with remote durability option
 
 
 class DiskType(BasicEnum, Enum):
@@ -119,6 +123,14 @@ class DiskType(BasicEnum, Enum):
     SSD = "SSD"
     NVME = "NVME"
     NETWORK = "NETWORK"
+
+
+class ReplicationMode(BasicEnum, Enum):
+    """Replication capability required from the generated cluster."""
+
+    NONE = "none"
+    PHYSICAL = "physical"
+    LOGICAL = "logical"
 
 
 class Platform(BasicEnum, Enum):
@@ -178,24 +190,16 @@ class PGConfigurator:
         },
     }
 
-    profile_extensions = {
-        "profile_1c": {
-            "auto_explain",
-            "online_analyze",
-            "pg_stat_statements",
-            "pg_store_plans",
-            "plantuner",
-        },
-        "ext_perf": set(),
-        "profile_backend_common": {
-            "auto_explain",
-            "online_analyze",
-            "pg_stat_statements",
-            "pg_store_plans",
-        },
-        "profile_backend_perf": set(),
+    # Compatibility aliases; extension ownership and version metadata live in
+    # conf_common.py together with the corresponding rules.
+    profile_extensions = PROFILE_EXTENSION_DEPENDENCIES
+    extension_supported_versions = {
+        name: spec["supported_versions"] for name, spec in EXTENSION_SPECS.items()
     }
 
+    # Used only for old five-column snapshots. Refreshed snapshots carry the
+    # authoritative pg_settings.context value and therefore do not rely on
+    # this compatibility fallback.
     restart_required_settings = {
         "autovacuum_freeze_max_age",
         "autovacuum_multixact_freeze_max_age",
@@ -203,8 +207,10 @@ class PGConfigurator:
         "huge_pages",
         "io_max_concurrency",
         "io_method",
-        "io_workers",
+        "logging_collector",
         "max_connections",
+        "max_files_per_process",
+        "max_logical_replication_workers",
         "max_locks_per_transaction",
         "max_pred_locks_per_transaction",
         "max_replication_slots",
@@ -212,8 +218,11 @@ class PGConfigurator:
         "max_worker_processes",
         "shared_buffers",
         "shared_preload_libraries",
+        "track_activity_query_size",
         "wal_buffers",
         "wal_level",
+        "wal_log_hints",
+        "hot_standby",
     }
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -226,6 +235,7 @@ class PGConfigurator:
         self.ext_params = ext_params
         self.last_artifact = None
         self.last_calculation = {}
+        self.last_extensions = []
         self.last_inputs = {}
         self.last_overrides = []
         self.last_parameter_details = {}
@@ -242,21 +252,17 @@ class PGConfigurator:
             )
 
     @staticmethod
-    def calc_synchronous_commit(duty_db, replication_enabled):
-        if replication_enabled:
-            if duty_db == DutyDB.STATISTIC:
-                return "off"
-            if duty_db == DutyDB.MIXED:
-                return "local"
-            if duty_db == DutyDB.FINANCIAL:
-                return "remote_apply"
-        else:
-            if duty_db == DutyDB.STATISTIC:
-                return "off"
-            if duty_db == DutyDB.MIXED:
-                return "off"
-            if duty_db == DutyDB.FINANCIAL:
-                return "on"
+    def calc_synchronous_commit(duty_db, synchronous_standby_names=""):
+        """Choose a truthful durability level.
+
+        ``remote_apply`` is useful only when synchronous standbys are actually
+        named. Without them it provides no remote durability and is therefore
+        not emitted for the financial profile.
+        """
+
+        if duty_db == DutyDB.FINANCIAL and synchronous_standby_names.strip():
+            return "remote_apply"
+        return "on"
 
     @staticmethod
     def iterate_alg_set(tune_alg) -> [str, dict]:
@@ -337,6 +343,19 @@ class PGConfigurator:
             raise ValueError(f"{group_name} must sum to 1.0")
 
     @staticmethod
+    def _validate_memory_budget_parts(values):
+        for name, value in values.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a number")
+            if value <= 0 or value > 0.4:
+                raise ValueError(f"{name} must be greater than 0 and not greater than 0.4")
+        allocated = sum(values.values())
+        if allocated > 0.75:
+            raise ValueError(
+                f"Main memory budgets must use at most 75% of available RAM; got {allocated:.2%}"
+            )
+
+    @staticmethod
     def _validate_positive_range(min_value, max_value, min_name, max_name):
         for name, value in ((min_name, min_value), (max_name, max_value)):
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -345,22 +364,30 @@ class PGConfigurator:
             raise ValueError(f"{min_name} must not be greater than {max_name}")
 
     @classmethod
-    def _load_supported_setting_names(cls, pg_version):
+    def _load_setting_metadata(cls, pg_version):
         settings_file = os.path.join(
             cls.current_dir, "pg_settings_history", cls.known_versions[pg_version]
         )
         with open(settings_file, encoding="utf-8") as file_handle:
-            reader = csv.reader(file_handle)
-            next(reader, None)
-            return {row[0] for row in reader if row}
+            reader = csv.DictReader(file_handle)
+            return {row["name"]: row for row in reader if row.get("name")}
 
     @classmethod
-    def _validate_config_parameters(cls, config, pg_version):
-        supported_settings = cls._load_supported_setting_names(pg_version)
+    def _validate_config_parameters(
+        cls,
+        config,
+        pg_version,
+        *,
+        allowed_extension_prefixes=None,
+        snapshot_validated_extension_prefixes=None,
+    ):
+        settings_metadata = cls._load_setting_metadata(pg_version)
+        allowed_extension_prefixes = set(allowed_extension_prefixes or ())
+        snapshot_validated_extension_prefixes = set(snapshot_validated_extension_prefixes or ())
         unknown_settings = sorted(
             setting_name
             for setting_name in config
-            if "." not in setting_name and setting_name not in supported_settings
+            if "." not in setting_name and setting_name not in settings_metadata
         )
         if unknown_settings:
             raise ValueError(
@@ -369,36 +396,198 @@ class PGConfigurator:
                 )
             )
 
+        unknown_extension_settings = sorted(
+            setting_name
+            for setting_name in config
+            if "." in setting_name
+            and setting_name.split(".", 1)[0] not in allowed_extension_prefixes
+        )
+        if unknown_extension_settings:
+            raise ValueError(
+                "Extension parameters were not declared by an enabled profile or "
+                "available_extensions: {}".format(", ".join(unknown_extension_settings))
+            )
+
+        missing_snapshot_extension_settings = sorted(
+            setting_name
+            for setting_name in config
+            if "." in setting_name
+            and setting_name.split(".", 1)[0] in snapshot_validated_extension_prefixes
+            and setting_name not in settings_metadata
+        )
+        if missing_snapshot_extension_settings:
+            raise ValueError(
+                "Extension parameters are not present in the PostgreSQL {} snapshot: {}".format(
+                    pg_version, ", ".join(missing_snapshot_extension_settings)
+                )
+            )
+
+        for setting_name, value in config.items():
+            metadata = settings_metadata.get(setting_name)
+            if metadata is not None:
+                cls._validate_setting_value(setting_name, value, metadata, pg_version)
+
+        return settings_metadata
+
+    @staticmethod
+    def _parse_pg_array(value):
+        value = (value or "").strip()
+        if not value or value == "{}":
+            return set()
+        if value.startswith("{") and value.endswith("}"):
+            value = value[1:-1]
+        return {item.strip().strip('"') for item in value.split(",") if item.strip()}
+
+    @classmethod
+    def _validate_setting_value(cls, setting_name, value, metadata, pg_version):
+        """Validate bool/enum/numeric values against a pg_settings snapshot."""
+
+        normalized = str(value).strip().strip("'")
+        vartype = metadata.get("vartype", "")
+        if not vartype:
+            return
+
+        if vartype == "bool":
+            if normalized.lower() not in {"on", "off", "true", "false", "yes", "no", "1", "0"}:
+                raise ValueError(f"{setting_name} must be a PostgreSQL boolean")
+            return
+
+        if vartype == "enum":
+            enum_values = cls._parse_pg_array(metadata.get("enumvals", ""))
+            if enum_values and normalized not in enum_values:
+                raise ValueError(
+                    f"{setting_name}={normalized} is not supported by PostgreSQL {pg_version}; "
+                    f"expected one of: {', '.join(sorted(enum_values))}"
+                )
+            return
+
+        if vartype in {"integer", "real"}:
+            numeric_match = re.fullmatch(
+                r"([+-]?(?:\d+(?:\.\d*)?|\.\d+))([A-Za-z]+|8kB|16MB)?",
+                normalized,
+            )
+            if numeric_match is None:
+                raise ValueError(
+                    f"{setting_name}={normalized} is not a valid PostgreSQL numeric value"
+                )
+            setting_value = cls._numeric_value_in_setting_units(
+                float(numeric_match.group(1)),
+                numeric_match.group(2) or "",
+                metadata.get("unit", ""),
+            )
+            min_value = metadata.get("min_val", "")
+            max_value = metadata.get("max_val", "")
+            violated_bound = None
+            if min_value and setting_value < float(min_value):
+                violated_bound = ("min_val", min_value)
+            elif max_value and setting_value > float(max_value):
+                violated_bound = ("max_val", max_value)
+            if violated_bound is not None:
+                bound_name, bound = violated_bound
+                raise ValueError(
+                    f"{setting_name}={normalized} violates PostgreSQL {pg_version} "
+                    f"{bound_name}={bound}{metadata.get('unit', '')}"
+                )
+
+    @staticmethod
+    def _numeric_value_in_setting_units(amount, source_unit, target_unit):
+        if not source_unit:
+            return amount
+
+        size_factors = {
+            "B": 1,
+            "kB": 1024,
+            "8kB": 8 * 1024,
+            "MB": 1024**2,
+            "16MB": 16 * 1024**2,
+            "GB": 1024**3,
+            "TB": 1024**4,
+        }
+        time_factors = {
+            "ms": 0.001,
+            "s": 1,
+            "min": 60,
+            "h": 3600,
+            "d": 86400,
+        }
+        if source_unit in size_factors and target_unit in size_factors:
+            return amount * size_factors[source_unit] / size_factors[target_unit]
+        if source_unit in time_factors and target_unit in time_factors:
+            return amount * time_factors[source_unit] / time_factors[target_unit]
+        raise ValueError(
+            f"Cannot convert PostgreSQL value from {source_unit} to {target_unit or 'unitless'}"
+        )
+
+    @classmethod
+    def _setting_context(cls, setting_name, settings_metadata):
+        context = settings_metadata.get(setting_name, {}).get("context")
+        if context:
+            return context, "pg_settings_snapshot"
+        if "." in setting_name:
+            return "unknown", "external_extension"
+        fallback = "postmaster" if setting_name in cls.restart_required_settings else "sighup"
+        return fallback, "compatibility_fallback"
+
+    @staticmethod
+    def _apply_mode_for_context(context):
+        """Map PostgreSQL's GUC context to the minimum deployment action.
+
+        ``reload`` describes applying a value from a configuration source. A
+        session-level override can still mask the reloaded default. External
+        extension settings without captured ``pg_settings`` metadata require
+        target-specific handling and therefore remain ``manual``.
+        """
+
+        return {
+            "postmaster": "restart",
+            "sighup": "reload",
+            "backend": "reload_and_reconnect",
+            "superuser-backend": "reload_and_reconnect",
+            "superuser": "reload",
+            "user": "reload",
+            "internal": "immutable",
+            "unknown": "manual",
+        }.get(context, "manual")
+
     def make_conf(
         self,
         cpu_cores,
         ram_value,
         disk_type=DiskType.SAS,
         duty_db=DutyDB.MIXED,
-        replication_enabled=True,
-        pg_version="15",
+        replication_enabled=None,
+        replication_mode=None,
+        pitr_enabled=True,
+        synchronous_standby_names="",
+        replica_count=1,
+        logical_subscription_count=0,
+        pg_version="18",
         reserved_ram_percent=10,  # for calc of total_ram_in_bytes
         reserved_system_ram="256Mi",  # for calc of total_ram_in_bytes
-        shared_buffers_part=0.7,
-        client_mem_part=0.2,  # for all available connections
-        maintenance_mem_part=0.1,  # memory for maintenance connections + autovacuum workers
+        shared_buffers_part=0.25,
+        client_mem_part=0.2,  # concurrent query and temporary-memory budget
+        maintenance_mem_part=0.1,  # maintenance and autovacuum budget
         autovacuum_workers_mem_part=0.5,  # from maintenance_mem_part
         maintenance_conns_mem_part=0.5,  # from maintenance_mem_part
-        min_conns=50,
+        min_conns=20,
         max_conns=500,
-        min_autovac_workers=4,  # autovacuum workers
+        min_autovac_workers=3,  # autovacuum workers
         max_autovac_workers=20,
         min_maint_conns=4,  # maintenance connections
         max_maint_conns=16,
         platform=Platform.LINUX,
-        common_conf=False,
+        common_conf=True,
         conf_profiles=None,
         disk_score=None,
-        work_mem_concurrency_factor=2.0,
+        work_mem_concurrency_factor=4.0,
+        peak_wal_rate="4Mi",
+        replica_outage_tolerance=900,
+        wal_disk_budget="32Gi",
+        wal_segment_size="16Mi",
         available_extensions=None,
+        db_size=None,
     ):
-        # Validate public inputs before calculating a configuration.
-        # checks
+        # Validate and normalize public inputs before calculating a configuration.
         pg_version = str(pg_version)
         if pg_version not in self.known_versions:
             raise ValueError(f"Unsupported PostgreSQL version: {pg_version}")
@@ -407,16 +596,71 @@ class PGConfigurator:
         duty_db = self._coerce_enum(duty_db, DutyDB, "duty_db")
         platform = self._coerce_enum(platform, Platform, "platform")
 
-        if not isinstance(replication_enabled, bool):
-            raise ValueError("replication_enabled must be a boolean")
+        if replication_enabled is not None and not isinstance(replication_enabled, bool):
+            raise ValueError("replication_enabled must be a boolean or None")
+        if replication_mode is None:
+            replication_mode = (
+                ReplicationMode.NONE if replication_enabled is False else ReplicationMode.PHYSICAL
+            )
+        else:
+            replication_mode = self._coerce_enum(
+                replication_mode, ReplicationMode, "replication_mode"
+            )
+        if replication_enabled is not None and replication_enabled != (
+            replication_mode != ReplicationMode.NONE
+        ):
+            raise ValueError(
+                "replication_enabled conflicts with the explicitly selected replication_mode"
+            )
+        replication_enabled = replication_mode != ReplicationMode.NONE
+
+        if not isinstance(pitr_enabled, bool):
+            raise ValueError("pitr_enabled must be a boolean")
+        if not isinstance(synchronous_standby_names, str):
+            raise ValueError("synchronous_standby_names must be a string")
+        if synchronous_standby_names.strip() and not replication_enabled:
+            raise ValueError("synchronous_standby_names requires physical or logical replication")
         if not isinstance(common_conf, bool):
             raise ValueError("common_conf must be a boolean")
+        if not common_conf:
+            raise ValueError(
+                "common_conf cannot be disabled: CSV logging, auto_explain, and "
+                "pg_stat_statements are part of the complete configuration contract"
+            )
         if conf_profiles is not None and not isinstance(conf_profiles, str):
             raise ValueError("conf_profiles must be a comma-separated string")
         if available_extensions is not None and not isinstance(
             available_extensions, (str, list, tuple, set)
         ):
             raise ValueError("available_extensions must be a comma-separated string or collection")
+
+        selected_profiles = []
+        if conf_profiles:
+            selected_profiles = [item.strip() for item in conf_profiles.split(",")]
+            if any(profile == "" for profile in selected_profiles):
+                raise ValueError("Profile name must not be empty")
+            if len(selected_profiles) != len(set(selected_profiles)):
+                raise ValueError("Profile names must not be repeated")
+            unknown_profiles = [
+                profile for profile in selected_profiles if profile not in self.conf_profiles
+            ]
+            if unknown_profiles:
+                raise ValueError("Unknown configuration profiles: " + ", ".join(unknown_profiles))
+            unsupported_profiles = [
+                profile
+                for profile in selected_profiles
+                if pg_version not in self.conf_profiles[profile]["supported_versions"]
+            ]
+            if unsupported_profiles:
+                raise ValueError(
+                    f"Profiles do not support PostgreSQL {pg_version}: "
+                    + ", ".join(unsupported_profiles)
+                )
+            if "profile_1c" in selected_profiles and len(selected_profiles) != 1:
+                raise ValueError(
+                    "profile_1c is an exclusive compatibility profile and cannot be combined "
+                    "with other configuration profiles"
+                )
 
         if disk_score is not None:
             if isinstance(disk_score, bool) or not isinstance(disk_score, (int, float)):
@@ -439,13 +683,12 @@ class PGConfigurator:
                 "reserved_ram_percent must be greater than or equal to 0 and less than 100"
             )
 
-        self._validate_fraction_group(
+        self._validate_memory_budget_parts(
             {
                 "shared_buffers_part": shared_buffers_part,
                 "client_mem_part": client_mem_part,
                 "maintenance_mem_part": maintenance_mem_part,
-            },
-            "Main memory parts",
+            }
         )
         self._validate_fraction_group(
             {
@@ -458,22 +701,40 @@ class PGConfigurator:
         self._validate_positive_range(
             min_autovac_workers, max_autovac_workers, "min_autovac_workers", "max_autovac_workers"
         )
+        if "profile_1c" in selected_profiles and max_autovac_workers < 4:
+            raise ValueError("profile_1c requires max_autovac_workers to be at least 4")
         self._validate_positive_range(
             min_maint_conns, max_maint_conns, "min_maint_conns", "max_maint_conns"
         )
-        # Fixed normalization boundaries.
-        # consts
+
+        for name, value in {
+            "replica_count": replica_count,
+            "logical_subscription_count": logical_subscription_count,
+        }.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        if pg_version == "9.6" and logical_subscription_count:
+            raise ValueError("logical_subscription_count requires PostgreSQL 10 or newer")
+        if logical_subscription_count and replication_mode != ReplicationMode.LOGICAL:
+            raise ValueError("logical_subscription_count requires replication_mode=logical")
+        if (
+            isinstance(replica_outage_tolerance, bool)
+            or not isinstance(replica_outage_tolerance, int)
+            or replica_outage_tolerance < 0
+        ):
+            raise ValueError("replica_outage_tolerance must be a non-negative integer")
+
         page_size = 8192
-        max_cpu_cores = 96  # maximum of CPU cores in system, 4 CPU with 12 cores=>24 threads = 96
-        min_cpu_cores = 4
-        max_ram = "768Gi"
-        min_work_mem_in_bytes = 64 * 1024
-        min_temp_buffers_in_bytes = 100 * page_size
-        # Pre-calculated values.
-        # pre-calculated vars
+        mebibyte = 1024**2
+        gibibyte = 1024**3
+        min_work_mem_in_bytes = 1024**2
+        default_temp_buffers_in_bytes = 8 * mebibyte
+        backend_memory_reserve_in_bytes = 10 * mebibyte
+
         total_cpu_cores = UnitConverter.size_cpu_to_ncores(cpu_cores)
         if total_cpu_cores <= 0:
             raise ValueError("cpu_cores must be greater than 0")
+        cpu_threads = max(1, math.floor(total_cpu_cores))
 
         ram_in_bytes = UnitConverter.size_from(ram_value, system=UnitConverter.sys_iec)
         reserved_system_ram_in_bytes = UnitConverter.size_from(
@@ -491,28 +752,83 @@ class PGConfigurator:
                 "Available RAM must be greater than 0 after reserved memory is subtracted"
             )
 
-        max_ram_in_bytes = (
-            UnitConverter.size_from(max_ram, system=UnitConverter.sys_iec) * available_ram_ratio
-            - reserved_system_ram_in_bytes
+        if db_size is not None and (not isinstance(db_size, str) or not db_size.strip()):
+            raise ValueError("db_size must be a non-empty IEC size string or None")
+        database_size_in_bytes = (
+            UnitConverter.size_from(db_size, system=UnitConverter.sys_iec)
+            if db_size is not None
+            else None
         )
-        if max_ram_in_bytes <= 0:
-            raise ValueError(f"reserved memory exceeds the RAM normalization limit {max_ram}")
+        if database_size_in_bytes is not None and database_size_in_bytes <= 0:
+            raise ValueError("db_size must be greater than 0")
 
-        cpu_scale_ratio = min(
-            max((total_cpu_cores - min_cpu_cores) / (max_cpu_cores - min_cpu_cores), 0), 1
+        peak_wal_rate_in_bytes = UnitConverter.size_from(
+            peak_wal_rate, system=UnitConverter.sys_iec
         )
-        connection_capacity = int(
-            (total_ram_in_bytes * client_mem_part)
-            / (min_work_mem_in_bytes + min_temp_buffers_in_bytes)
+        wal_disk_budget_in_bytes = UnitConverter.size_from(
+            wal_disk_budget, system=UnitConverter.sys_iec
         )
+        wal_segment_size_in_bytes = UnitConverter.size_from(
+            wal_segment_size, system=UnitConverter.sys_iec
+        )
+        if peak_wal_rate_in_bytes <= 0:
+            raise ValueError("peak_wal_rate must be greater than 0")
+        if wal_disk_budget_in_bytes < gibibyte:
+            raise ValueError("wal_disk_budget must be at least 1Gi")
+        if (
+            wal_segment_size_in_bytes < mebibyte
+            or wal_segment_size_in_bytes > gibibyte
+            or wal_segment_size_in_bytes & (wal_segment_size_in_bytes - 1)
+        ):
+            raise ValueError("wal_segment_size must be a power-of-two size between 1Mi and 1Gi")
+        if wal_disk_budget_in_bytes < wal_segment_size_in_bytes * 8:
+            raise ValueError("wal_disk_budget must hold at least eight WAL segments")
+
+        memory_allocated_part = shared_buffers_part + client_mem_part + maintenance_mem_part
+        operating_headroom_part = 1.0 - memory_allocated_part
+        # Backends may consume only part of the unassigned headroom. Keep the
+        # remainder available for lock tables, logical decoding, WAL, contrib
+        # workers, kernel buffers, and estimation error.
+        connection_overhead_budget = total_ram_in_bytes * operating_headroom_part * 0.67
+        connection_capacity = int(connection_overhead_budget / backend_memory_reserve_in_bytes)
         if connection_capacity < min_conns:
             raise ValueError(
-                f"Client memory budget supports {connection_capacity} connections, "
+                f"Backend memory reserve supports {connection_capacity} connections, "
                 f"less than min_conns={min_conns}"
             )
 
+        connections_per_cpu = 5 if duty_db == DutyDB.OLTP else 4
+        duty_work_mem_cap_bytes = {
+            DutyDB.FINANCIAL: 16 * mebibyte,
+            DutyDB.OLTP: 32 * mebibyte,
+            DutyDB.MIXED: 64 * mebibyte,
+            DutyDB.STATISTIC: 256 * mebibyte,
+        }[duty_db]
+        autovacuum_cpu_divisor = 6 if duty_db == DutyDB.OLTP else 8
+        autovacuum_naptime = {
+            DutyDB.FINANCIAL: "30s",
+            DutyDB.OLTP: "20s",
+            DutyDB.MIXED: "30s",
+            DutyDB.STATISTIC: "30s",
+        }[duty_db]
+        autovacuum_vacuum_scale_factor = {
+            DutyDB.FINANCIAL: 0.02,
+            DutyDB.OLTP: 0.015,
+            DutyDB.MIXED: 0.02,
+            DutyDB.STATISTIC: 0.02,
+        }[duty_db]
+        autovacuum_analyze_scale_factor = {
+            DutyDB.FINANCIAL: 0.01,
+            DutyDB.OLTP: 0.0075,
+            DutyDB.MIXED: 0.01,
+            DutyDB.STATISTIC: 0.01,
+        }[duty_db]
+
         def calc_cpu_scale(v_min, v_max):
-            return cpu_scale_ratio * (v_max - v_min) + v_min
+            if v_min > v_max:
+                raise ValueError("v_min must not be greater than v_max")
+            cpu_ratio = min(max((cpu_threads - 1) / 95, 0), 1)
+            return cpu_ratio * (v_max - v_min) + v_min
 
         def calc_connection_scale(v_min, v_max):
             if connection_capacity < v_min:
@@ -520,7 +836,8 @@ class PGConfigurator:
                     f"Client memory budget supports {connection_capacity} connections, "
                     f"less than the required minimum {v_min}"
                 )
-            return int(min(calc_cpu_scale(v_min, v_max), connection_capacity, v_max))
+            cpu_target = v_min + max(0, cpu_threads - 1) * connections_per_cpu
+            return int(min(max(cpu_target, v_min), connection_capacity, v_max))
 
         def calc_connection_limit(desired_connections, required_minimum):
             if desired_connections < required_minimum:
@@ -530,10 +847,10 @@ class PGConfigurator:
                 )
             if connection_capacity < required_minimum:
                 raise ValueError(
-                    f"Client memory budget supports {connection_capacity} connections, "
+                    f"Backend memory reserve supports {connection_capacity} connections, "
                     f"less than the required minimum {required_minimum}"
                 )
-            return int(min(desired_connections, connection_capacity))
+            return int(min(desired_connections, connection_capacity, max_conns))
 
         def calc_client_mem_values(connection_count, temp_buffers_part=0.1):
             if connection_count <= 0:
@@ -541,70 +858,485 @@ class PGConfigurator:
             if temp_buffers_part <= 0 or temp_buffers_part >= 1:
                 raise ValueError("temp_buffers_part must be greater than 0 and less than 1")
 
-            memory_per_connection = (total_ram_in_bytes * client_mem_part) / connection_count
-            minimum_required = min_work_mem_in_bytes + min_temp_buffers_in_bytes
-            if memory_per_connection < minimum_required:
-                raise ValueError(
-                    "Client memory budget per connection is lower than PostgreSQL minimums"
-                )
-
-            temp_buffers_value = max(
-                memory_per_connection * temp_buffers_part, min_temp_buffers_in_bytes
+            active_query_sessions = min(connection_count, max(4, cpu_threads * 2))
+            client_memory_budget = total_ram_in_bytes * client_mem_part
+            temp_buffers_value = min(
+                max(
+                    default_temp_buffers_in_bytes,
+                    client_memory_budget * temp_buffers_part / active_query_sessions,
+                ),
+                32 * mebibyte,
             )
-            work_mem_value = (
-                memory_per_connection - temp_buffers_value
-            ) / work_mem_concurrency_factor
-            if work_mem_value < min_work_mem_in_bytes:
-                work_mem_value = min_work_mem_in_bytes
-                temp_buffers_value = memory_per_connection - work_mem_value
+            work_memory_budget = max(
+                client_memory_budget - temp_buffers_value * active_query_sessions,
+                min_work_mem_in_bytes
+                * active_query_sessions
+                * work_mem_concurrency_factor
+                * hash_mem_multiplier,
+            )
+            work_mem_value = work_memory_budget / (
+                active_query_sessions * work_mem_concurrency_factor * hash_mem_multiplier
+            )
+            work_mem_value = min(
+                max(work_mem_value, min_work_mem_in_bytes), duty_work_mem_cap_bytes
+            )
             return work_mem_value, temp_buffers_value
 
-        maint_max_conns = calc_cpu_scale(min_maint_conns, max_maint_conns)
-        # System score calculation in percent.
-        # system scores calculation in percents
-        cpu_scores = min(max((total_cpu_cores * 100) / max_cpu_cores, 0), 100)
-        ram_scores = min(max((total_ram_in_bytes * 100) / max_ram_in_bytes, 0), 100)
+        maint_max_conns = int(
+            min(max(min_maint_conns, math.ceil(cpu_threads / 8)), max_maint_conns)
+        )
+        active_query_sessions = min(max_conns, max(4, cpu_threads * 2))
+
         default_disk_scores = {
-            DiskType.SATA: 20,
-            DiskType.SAS: 40,
-            DiskType.SSD: 100,
-            DiskType.NVME: 100,
-            DiskType.NETWORK: 50,
+            DiskType.SATA: 15,
+            DiskType.SAS: 30,
+            DiskType.NETWORK: 45,
+            DiskType.SSD: 75,
+            DiskType.NVME: 90,
         }
         disk_scores = disk_score if disk_score is not None else default_disk_scores[disk_type]
-
-        system_scores = (
-            0.5 * cpu_scores * ram_scores * 0.866
-            + 0.5 * ram_scores * disk_scores * 0.866
-            + 0.5 * disk_scores * cpu_scores * 0.866
-        )
-        # where triangle_surface = 0.5 * cpu_scores * ram_scores * sin(120)
-        # sin(120) = 0.866
-
-        system_scores_max = (
-            0.5 * 100 * 100 * 0.866 + 0.5 * 100 * 100 * 0.866 + 0.5 * 100 * 100 * 0.866
-        )
-
-        system_scores = min(max((system_scores * 100) / system_scores_max, 0), 100)
-        # 100 represents max_cpu_cores, max_ram, and reference SSD storage.
-
-        def calc_system_scores_scale(v_min, v_max):
-            return (system_scores / 100) * (v_max - v_min) + v_min
 
         def calc_disk_scale(v_min, v_max):
             return (disk_scores / 100) * (v_max - v_min) + v_min
 
-        selected_profiles = []
-        if conf_profiles:
-            selected_profiles = [item.strip() for item in conf_profiles.split(",")]
-            if any(profile == "" for profile in selected_profiles):
-                raise ValueError("Profile name must not be empty")
+        # Compatibility helper for third-party rules. Bundled rules deliberately
+        # do not use a composite score: each setting follows its causal resource.
+        cpu_scores = min(cpu_threads / 96 * 100, 100)
+        ram_scores = min(total_ram_in_bytes / (768 * gibibyte) * 100, 100)
+        system_scores = (cpu_scores + ram_scores + disk_scores) / 3
+
+        def calc_system_scores_scale(v_min, v_max):
+            return (system_scores / 100) * (v_max - v_min) + v_min
+
+        max_connections_value = calc_connection_scale(min_conns, max_conns)
+        active_query_sessions = min(max_connections_value, max(4, cpu_threads * 2))
+        shared_buffers_bytes = total_ram_in_bytes * shared_buffers_part
+        maintenance_budget_bytes = total_ram_in_bytes * maintenance_mem_part
+        maintenance_work_mem_bytes = min(
+            maintenance_budget_bytes * maintenance_conns_mem_part / maint_max_conns,
+            2 * gibibyte,
+        )
+
+        if "profile_1c" in selected_profiles:
+            autovacuum_workers = int(
+                min(
+                    max(min_autovac_workers, 4, math.ceil(cpu_threads / 4)),
+                    max_autovac_workers,
+                )
+            )
+        else:
+            autovacuum_workers = int(
+                min(
+                    max(min_autovac_workers, math.ceil(cpu_threads / autovacuum_cpu_divisor) + 2),
+                    max_autovac_workers,
+                )
+            )
+        autovacuum_work_mem_bytes = min(
+            maintenance_budget_bytes * autovacuum_workers_mem_part / autovacuum_workers,
+            1024 * mebibyte,
+        )
+
+        if cpu_threads < 2 or total_ram_in_bytes < 2 * gibibyte:
+            parallel_worker_budget = 0
+        else:
+            cpu_parallel_worker_budget = max(
+                1,
+                int(
+                    cpu_threads
+                    * {
+                        DutyDB.FINANCIAL: 0.25,
+                        DutyDB.OLTP: 0.35,
+                        DutyDB.MIXED: 0.5,
+                        DutyDB.STATISTIC: 0.75,
+                    }[duty_db]
+                ),
+            )
+            ram_parallel_worker_budget = max(1, int(total_ram_in_bytes / (2 * gibibyte)))
+            parallel_worker_budget = min(
+                32,
+                cpu_parallel_worker_budget,
+                ram_parallel_worker_budget,
+            )
+        logical_worker_budget = (
+            min(16, max(2, logical_subscription_count * 2 + 2))
+            if replication_mode == ReplicationMode.LOGICAL
+            else 0
+        )
+        extension_worker_reserve = 4 if common_conf or conf_profiles else 2
+        worker_process_budget = min(
+            64,
+            max(
+                8,
+                parallel_worker_budget + logical_worker_budget + extension_worker_reserve + 2,
+            ),
+        )
+        parallel_workers_per_gather = min(
+            parallel_worker_budget,
+            {
+                DutyDB.FINANCIAL: 2,
+                DutyDB.OLTP: 2,
+                DutyDB.MIXED: 4,
+                DutyDB.STATISTIC: 8,
+            }[duty_db],
+        )
+        parallel_maintenance_workers = min(
+            parallel_worker_budget,
+            {
+                DutyDB.FINANCIAL: 2,
+                DutyDB.OLTP: 2,
+                DutyDB.MIXED: 4,
+                DutyDB.STATISTIC: 8,
+            }[duty_db],
+        )
+        parallel_setup_cost = {
+            DutyDB.FINANCIAL: 2000,
+            DutyDB.OLTP: 1500,
+            DutyDB.MIXED: 1000,
+            DutyDB.STATISTIC: 500,
+        }[duty_db]
+        parallel_tuple_cost = {
+            DutyDB.FINANCIAL: 0.15,
+            DutyDB.OLTP: 0.12,
+            DutyDB.MIXED: 0.10,
+            DutyDB.STATISTIC: 0.05,
+        }[duty_db]
+        min_parallel_table_scan_size = {
+            DutyDB.FINANCIAL: "32MB",
+            DutyDB.OLTP: "16MB",
+            DutyDB.MIXED: "8MB",
+            DutyDB.STATISTIC: "4MB",
+        }[duty_db]
+        min_parallel_index_scan_size = {
+            DutyDB.FINANCIAL: "2MB",
+            DutyDB.OLTP: "1MB",
+            DutyDB.MIXED: "512kB",
+            DutyDB.STATISTIC: "256kB",
+        }[duty_db]
+        sync_workers_per_subscription = (
+            min(4, max(1, logical_worker_budget // 2)) if logical_worker_budget else 0
+        )
+        parallel_apply_workers = min(4, max(0, logical_worker_budget - 2))
+
+        effective_replica_count = replica_count if replication_enabled else 0
+        effective_logical_subscriptions = (
+            logical_subscription_count if replication_mode == ReplicationMode.LOGICAL else 0
+        )
+        replication_slot_budget = (
+            effective_replica_count + effective_logical_subscriptions + 2
+            if replication_enabled
+            else 0
+        )
+        wal_sender_budget = (
+            replication_slot_budget + effective_replica_count + 2 if replication_enabled else 0
+        )
+        wal_level = (
+            "logical"
+            if replication_mode == ReplicationMode.LOGICAL
+            else "replica"
+            if replication_enabled or pitr_enabled
+            else "minimal"
+        )
+        synchronous_commit = self.calc_synchronous_commit(duty_db, synchronous_standby_names)
+        max_standby_streaming_delay = {
+            DutyDB.FINANCIAL: "30s",
+            DutyDB.OLTP: "45s",
+            DutyDB.MIXED: "60s",
+            DutyDB.STATISTIC: "5min",
+        }[duty_db]
+
+        checkpoint_timeout_seconds = {
+            DutyDB.FINANCIAL: 300,
+            DutyDB.OLTP: 600,
+            DutyDB.MIXED: 900,
+            DutyDB.STATISTIC: 1800,
+        }[duty_db]
+        checkpoint_timeout = f"{checkpoint_timeout_seconds // 60}min"
+        max_wal_size_bytes = min(
+            max(
+                peak_wal_rate_in_bytes * checkpoint_timeout_seconds * 2,
+                gibibyte,
+                wal_segment_size_in_bytes * 4,
+            ),
+            wal_disk_budget_in_bytes * 0.5,
+        )
+        min_wal_size_bytes = min(
+            max(max_wal_size_bytes / 4, wal_segment_size_in_bytes * 2),
+            4 * gibibyte,
+        )
+        wal_keep_bytes = (
+            min(
+                max(
+                    peak_wal_rate_in_bytes * replica_outage_tolerance,
+                    512 * mebibyte,
+                ),
+                wal_disk_budget_in_bytes * 0.4,
+            )
+            if replication_enabled
+            else 0
+        )
+        wal_keep_segments = (
+            math.ceil(wal_keep_bytes / wal_segment_size_in_bytes) if replication_enabled else 0
+        )
+        max_slot_wal_keep_size_bytes = (
+            wal_disk_budget_in_bytes * 0.4 if replication_slot_budget else 0
+        )
+
+        effective_io_concurrency = (
+            2
+            if disk_scores < 25
+            else 16
+            if disk_scores < 50
+            else 64
+            if disk_scores < 75
+            else 128
+            if disk_scores < 90
+            else 256
+        )
+        maintenance_io_concurrency = max(2, min(64, effective_io_concurrency // 2))
+        random_page_cost = round(4.0 - (disk_scores / 100) * 2.9, 2)
+
+        if platform == Platform.WINDOWS:
+            io_combine_limit_bytes = 128 * 1024
+        else:
+            io_combine_limit_bytes = {
+                DutyDB.FINANCIAL: 128 * 1024,
+                DutyDB.OLTP: 256 * 1024 if disk_scores >= 50 else 128 * 1024,
+                DutyDB.MIXED: 512 * 1024 if disk_scores >= 75 else 256 * 1024,
+                DutyDB.STATISTIC: 1024 * 1024 if disk_scores >= 75 else 512 * 1024,
+            }[duty_db]
+        if get_major_version(pg_version) == 17:
+            io_combine_limit_bytes = min(io_combine_limit_bytes, 256 * 1024)
+        io_max_combine_limit_bytes = io_combine_limit_bytes
+
+        vacuum_buffer_usage_limit_bytes = min(
+            shared_buffers_bytes / 8,
+            {
+                DutyDB.FINANCIAL: 1024 * 1024,
+                DutyDB.OLTP: 2 * mebibyte,
+                DutyDB.MIXED: 8 * mebibyte,
+                DutyDB.STATISTIC: 32 * mebibyte,
+            }[duty_db],
+        )
+        if "profile_1c" in selected_profiles:
+            vacuum_buffer_usage_limit_bytes = min(
+                vacuum_buffer_usage_limit_bytes,
+                2 * mebibyte,
+            )
+
+        statistics_tiers = (100, 500, 1000, 2500, 5000)
+
+        def round_statistics_target(value):
+            return next((tier for tier in statistics_tiers if tier >= value), statistics_tiers[-1])
+
+        statistics_cpu_cap = (
+            500
+            if cpu_threads < 4
+            else 1000
+            if cpu_threads < 8
+            else 2500
+            if cpu_threads < 16
+            else 5000
+        )
+        statistics_ram_cap = (
+            500
+            if total_ram_in_bytes < 8 * gibibyte
+            else 1000
+            if total_ram_in_bytes < 32 * gibibyte
+            else 2500
+            if total_ram_in_bytes < 128 * gibibyte
+            else 5000
+        )
+        statistics_resource_cap = min(statistics_cpu_cap, statistics_ram_cap)
+        statistics_size_multiplier = (
+            1
+            if database_size_in_bytes is None
+            else 1
+            if database_size_in_bytes < 100 * gibibyte
+            else 2
+            if database_size_in_bytes < 1024 * gibibyte
+            else 4
+        )
+        statistics_duty_base = {
+            DutyDB.FINANCIAL: 500,
+            DutyDB.OLTP: 500,
+            DutyDB.MIXED: 1000,
+            DutyDB.STATISTIC: 2500,
+        }[duty_db]
+        statistics_duty_cap = {
+            DutyDB.FINANCIAL: 1000,
+            DutyDB.OLTP: 2500,
+            DutyDB.MIXED: 5000,
+            DutyDB.STATISTIC: 5000,
+        }[duty_db]
+        default_statistics_target = min(
+            statistics_resource_cap,
+            statistics_duty_cap,
+            round_statistics_target(statistics_duty_base * statistics_size_multiplier),
+        )
+        profile_1c_statistics_target = min(
+            statistics_resource_cap,
+            round_statistics_target(1000 * statistics_size_multiplier),
+        )
+        profile_backend_statistics_target = min(
+            statistics_resource_cap,
+            max(500, default_statistics_target),
+        )
+
+        jit = "on" if duty_db in {DutyDB.MIXED, DutyDB.STATISTIC} else "off"
+        jit_above_cost = 50000 if duty_db == DutyDB.STATISTIC else 100000
+        jit_inline_above_cost = 250000 if duty_db == DutyDB.STATISTIC else 500000
+        jit_optimize_above_cost = 250000 if duty_db == DutyDB.STATISTIC else 500000
+        autovacuum_cost_limit = int(500 + disk_scores * 20)
+        autovacuum_cost_delay_ms = 10 if disk_scores < 25 else 5 if disk_scores < 60 else 2
+        available_ram_gib = total_ram_in_bytes / gibibyte
+        lock_tier = (
+            64
+            if available_ram_gib < 4
+            else 128
+            if available_ram_gib < 16
+            else 256
+            if available_ram_gib < 64
+            else 512
+            if available_ram_gib < 256
+            else 1024
+        )
+        connection_lock_target = max_connections_value
+        if "profile_1c" in selected_profiles:
+            connection_lock_target = calc_connection_limit(1000, min_conns)
+        max_locks_per_transaction = min(
+            2048,
+            max(lock_tier, 64 + math.ceil(connection_lock_target / 4)),
+        )
+        if "profile_1c" in selected_profiles:
+            max_locks_per_transaction = min(2000, max(512, max_locks_per_transaction))
+        max_pred_locks_per_transaction = min(
+            1024,
+            max(64, max_locks_per_transaction // 2),
+        )
+        max_pred_locks_per_page = min(
+            16,
+            max(2, max_pred_locks_per_transaction // 64),
+        )
+        max_pred_locks_per_relation = min(
+            max_pred_locks_per_transaction,
+            max(64, max_pred_locks_per_transaction // 2),
+        )
+        hash_mem_multiplier = 1.5 if duty_db in {DutyDB.FINANCIAL, DutyDB.OLTP} else 2.0
+        logical_connection_budget = max(1, replication_slot_budget)
+        logical_decoding_work_mem_bytes = min(
+            256 * mebibyte,
+            max(
+                64 * mebibyte,
+                total_ram_in_bytes * client_mem_part * 0.25 / logical_connection_budget,
+            ),
+        )
+        estimated_lock_process_count = (
+            connection_lock_target + worker_process_budget + autovacuum_workers + wal_sender_budget
+        )
+        estimated_lock_memory_bytes = (
+            max_locks_per_transaction * estimated_lock_process_count * 270
+            + max_pred_locks_per_transaction * connection_lock_target * 64
+        )
+        estimated_logical_decoding_memory_bytes = (
+            logical_decoding_work_mem_bytes * max(1, effective_logical_subscriptions)
+            if replication_mode == ReplicationMode.LOGICAL and get_major_version(pg_version) >= 13
+            else 0
+        )
+        effective_cache_size_bytes = max(
+            shared_buffers_bytes,
+            total_ram_in_bytes
+            - total_ram_in_bytes * client_mem_part
+            - maintenance_budget_bytes
+            - connection_lock_target * backend_memory_reserve_in_bytes
+            - estimated_lock_memory_bytes
+            - estimated_logical_decoding_memory_bytes,
+        )
+        autovacuum_worker_slots = min(
+            max_autovac_workers,
+            max(autovacuum_workers, autovacuum_workers + 2),
+        )
+        io_workers = min(8, max(3, math.ceil(cpu_threads / 8)))
+        lock_timeout = {
+            DutyDB.FINANCIAL: "5s",
+            DutyDB.OLTP: "10s",
+            DutyDB.MIXED: "15s",
+            DutyDB.STATISTIC: "1min",
+        }[duty_db]
+        statement_timeout = {
+            DutyDB.FINANCIAL: "5min",
+            DutyDB.OLTP: "15min",
+            DutyDB.MIXED: "30min",
+            DutyDB.STATISTIC: "4h",
+        }[duty_db]
+        idle_in_transaction_session_timeout = {
+            DutyDB.FINANCIAL: "5min",
+            DutyDB.OLTP: "10min",
+            DutyDB.MIXED: "15min",
+            DutyDB.STATISTIC: "1h",
+        }[duty_db]
+        idle_session_timeout = {
+            DutyDB.FINANCIAL: "4h",
+            DutyDB.OLTP: "6h",
+            DutyDB.MIXED: "8h",
+            DutyDB.STATISTIC: "24h",
+        }[duty_db]
+        transaction_timeout = {
+            DutyDB.FINANCIAL: "30min",
+            DutyDB.OLTP: "1h",
+            DutyDB.MIXED: "2h",
+            DutyDB.STATISTIC: "8h",
+        }[duty_db]
+        tcp_keepalives_idle_seconds = {
+            DutyDB.FINANCIAL: 60,
+            DutyDB.OLTP: 90,
+            DutyDB.MIXED: 120,
+            DutyDB.STATISTIC: 300,
+        }[duty_db]
+        tcp_keepalives_interval_seconds = {
+            DutyDB.FINANCIAL: 10,
+            DutyDB.OLTP: 15,
+            DutyDB.MIXED: 30,
+            DutyDB.STATISTIC: 30,
+        }[duty_db]
+        desired_tcp_keepalives_count = {
+            DutyDB.FINANCIAL: 6,
+            DutyDB.OLTP: 6,
+            DutyDB.MIXED: 4,
+            DutyDB.STATISTIC: 3,
+        }[duty_db]
+        tcp_keepalives_count = desired_tcp_keepalives_count if platform == Platform.LINUX else 0
+        network_failure_detection_seconds = (
+            tcp_keepalives_idle_seconds + tcp_keepalives_interval_seconds * tcp_keepalives_count
+            if tcp_keepalives_count
+            else None
+        )
+        tcp_user_timeout = (
+            f"{network_failure_detection_seconds}s" if platform == Platform.LINUX else "0"
+        )
+        client_connection_check_interval = (
+            {
+                DutyDB.FINANCIAL: "5s",
+                DutyDB.OLTP: "10s",
+                DutyDB.MIXED: "10s",
+                DutyDB.STATISTIC: "30s",
+            }[duty_db]
+            if platform == Platform.LINUX
+            else "0"
+        )
+        replication_network_timeout = {
+            DutyDB.FINANCIAL: "60s",
+            DutyDB.OLTP: "90s",
+            DutyDB.MIXED: "120s",
+            DutyDB.STATISTIC: "300s",
+        }[duty_db]
+        authentication_timeout = "30s"
+        deadlock_timeout = "2s" if duty_db == DutyDB.STATISTIC else "1s"
 
         warnings = []
-        if shared_buffers_part > 0.4:
+        if shared_buffers_part >= 0.35:
             warnings.append(
-                f"shared_buffers_part={shared_buffers_part} is an aggressive empirical setting; "
-                "verify it against the workload and operating-system cache"
+                f"shared_buffers_part={shared_buffers_part} leaves less operating-system cache "
+                "than the recommended default model"
             )
         if disk_score is None:
             warnings.append(
@@ -613,10 +1345,72 @@ class PGConfigurator:
                 "IOPS/latency and the complete data/WAL storage topology"
             )
         warnings.append(
-            "work_mem assumes a combined concurrency factor of "
-            f"{work_mem_concurrency_factor} for concurrent operators, "
-            "parallel participants, and hash amplification"
+            "work_mem is budgeted for "
+            f"{active_query_sessions} active sessions with amplification factor "
+            f"{work_mem_concurrency_factor}; validate this assumption with pg_diag"
         )
+        desired_wal_keep_bytes = peak_wal_rate_in_bytes * replica_outage_tolerance
+        if replication_enabled and desired_wal_keep_bytes > wal_keep_bytes:
+            warnings.append(
+                "Requested WAL retention exceeds 40% of wal_disk_budget and was capped; "
+                "increase wal_disk_budget or reduce the outage target"
+            )
+        if duty_db == DutyDB.FINANCIAL and not synchronous_standby_names.strip():
+            warnings.append(
+                "Financial duty uses synchronous_commit=on because no "
+                "synchronous_standby_names were supplied; remote durability is not claimed"
+            )
+        if wal_level == "minimal":
+            warnings.append(
+                "wal_level=minimal disables PITR and replication; use only for disposable clusters"
+            )
+        if pg_version in {"9.6", "10", "11", "12", "13"}:
+            warnings.append(
+                f"PostgreSQL {pg_version} is end-of-life; generated output is for legacy/test use"
+            )
+        if pitr_enabled:
+            warnings.append(
+                "pitr_enabled preserves WAL-level capability, but backup/WAL archiving transport "
+                "is deployment-specific and must be configured by pg_stand"
+            )
+        warnings.append(
+            "TCP keepalive and connection-check timeouts are safe baselines; align them with "
+            "load-balancer, firewall, proxy, and client-driver timeouts before apply"
+        )
+        warnings.append(
+            "The workload profile emits instance-wide statement, lock, idle-session, and "
+            "transaction timeouts for reproducible stands; production deployments should "
+            "prefer ALTER ROLE/ALTER DATABASE and preserve a less restrictive DBA role"
+        )
+        if get_major_version(pg_version) >= 10:
+            warnings.append(
+                "password_encryption=scram-sha-256 affects newly stored passwords; verify "
+                "legacy client-driver SCRAM support before rotating credentials"
+            )
+        if pg_version in {"14", "15", "16", "17", "18"}:
+            warnings.append(
+                "idle_session_timeout can surprise connection poolers; verify reconnect "
+                "behaviour or scope this timeout to interactive roles"
+            )
+        if platform == Platform.WINDOWS:
+            warnings.append(
+                "Windows does not expose TCP_KEEPCNT, TCP_USER_TIMEOUT, or PostgreSQL client "
+                "connection polling; their generated values remain 0 (operating-system default)"
+            )
+
+        if database_size_in_bytes is None:
+            warnings.append(
+                "db_size was not supplied; default_statistics_target uses the duty/resource "
+                "baseline without a database-size tier"
+            )
+        if default_statistics_target >= 2500 or (
+            "profile_1c" in selected_profiles and profile_1c_statistics_target >= 2500
+        ):
+            warnings.append(
+                "A high default_statistics_target increases ANALYZE samples and planning "
+                "overhead; validate cardinality estimates and prefer per-column statistics "
+                "for isolated skew"
+            )
 
         if "profile_1c" in selected_profiles:
             warnings.extend(
@@ -625,14 +1419,29 @@ class PGConfigurator:
                     "profile_1c disables row_security",
                     "profile_1c disables standard_conforming_strings",
                     "profile_1c requests up to 1000 connections and is capped by the memory budget",
+                    "profile_1c raises max_files_per_process; pg_stand must verify the OS "
+                    "file-descriptor limit before apply",
+                    "profile_1c keeps synchronous_commit=on despite performance-oriented "
+                    "1C guidance that permits possible loss of recent transactions",
+                    "profile_1c does not emit patched-PostgreSQL-only GUCs such as "
+                    "enable_temp_memory_catalog without an explicit target-distribution contract",
                 ]
             )
 
-        required_extensions = set()
+        required_extensions = set(MANDATORY_COMMON_EXTENSIONS)
         for profile in selected_profiles:
             required_extensions.update(self.profile_extensions.get(profile, set()))
-        if common_conf:
-            required_extensions.update({"auto_explain", "pg_stat_statements"})
+
+        unsupported_extensions = sorted(
+            extension
+            for extension in required_extensions
+            if pg_version not in self.extension_supported_versions.get(extension, ())
+        )
+        if unsupported_extensions:
+            raise ValueError(
+                f"Extensions have no bundled PostgreSQL {pg_version} rules: "
+                + ", ".join(unsupported_extensions)
+            )
 
         normalized_available_extensions = None
         if available_extensions is not None:
@@ -648,7 +1457,7 @@ class PGConfigurator:
         if required_extensions:
             if normalized_available_extensions is None:
                 warnings.append(
-                    "Required extensions were not preflighted: {}".format(
+                    "Required extensions were not declared available by the caller: {}".format(
                         ", ".join(sorted(required_extensions))
                     )
                 )
@@ -660,6 +1469,43 @@ class PGConfigurator:
                             ", ".join(missing_extensions)
                         )
                     )
+                warnings.append(
+                    "Extension availability is caller-declared, not live-verified; pg_stand "
+                    "must check target packages, preloadability, and external GUC compatibility"
+                )
+
+        shared_preload_libraries_value = ",".join(
+            extension for extension in EXTENSION_PRELOAD_ORDER if extension in required_extensions
+        )
+        auto_explain_log_min_duration = {
+            DutyDB.FINANCIAL: "5s",
+            DutyDB.OLTP: "8s",
+            DutyDB.MIXED: "10s",
+            DutyDB.STATISTIC: "30s",
+        }[duty_db]
+        auto_explain_sample_rate = {
+            DutyDB.FINANCIAL: 0.01,
+            DutyDB.OLTP: 0.015,
+            DutyDB.MIXED: 0.02,
+            DutyDB.STATISTIC: 0.05,
+        }[duty_db]
+        log_transaction_sample_rate = {
+            DutyDB.FINANCIAL: 0.0001,
+            DutyDB.OLTP: 0.00025,
+            DutyDB.MIXED: 0.0005,
+            DutyDB.STATISTIC: 0.001,
+        }[duty_db]
+        log_statement_sample_rate = {
+            DutyDB.FINANCIAL: 0.001,
+            DutyDB.OLTP: 0.0025,
+            DutyDB.MIXED: 0.005,
+            DutyDB.STATISTIC: 0.01,
+        }[duty_db]
+        log_min_duration_statement = auto_explain_log_min_duration
+        warnings.append(
+            "CSV logging is enabled with size/time rotation; configure external retention "
+            "for the pg_log directory to enforce a total disk limit"
+        )
 
         # Apply profiles to a per-run copy. Bundled rules must remain immutable
         # because pg_play can calculate several candidate configurations in one process.
@@ -723,6 +1569,17 @@ class PGConfigurator:
             for rule in prepared_common_alg_set:
                 rule["_source"] = "common"
             prepared_alg_set.extend(prepared_common_alg_set)
+            for profile in selected_profiles:
+                profile_common_rules = common_profile_alg_sets.get(profile)
+                if profile_common_rules is None:
+                    continue
+                prepared_profile_common_rules = PGConfigurator.prepare_alg_set(
+                    profile_common_rules,
+                    f"conf_common:{profile}",
+                )[pg_version]
+                for rule in prepared_profile_common_rules:
+                    rule["_source"] = f"common:{profile}"
+                prepared_alg_set.extend(prepared_profile_common_rules)
 
         if (
             self.ext_params is not None and len(self.ext_params) > 0
@@ -742,37 +1599,115 @@ class PGConfigurator:
             "DutyDB": DutyDB,
             "PGConfigurator": PGConfigurator,
             "Platform": Platform,
+            "ReplicationMode": ReplicationMode,
             "UnitConverter": UnitConverter,
+            "autovacuum_cost_delay_ms": autovacuum_cost_delay_ms,
+            "autovacuum_cost_limit": autovacuum_cost_limit,
+            "autovacuum_naptime": autovacuum_naptime,
+            "autovacuum_analyze_scale_factor": autovacuum_analyze_scale_factor,
+            "autovacuum_vacuum_scale_factor": autovacuum_vacuum_scale_factor,
+            "autovacuum_worker_slots": autovacuum_worker_slots,
+            "autovacuum_workers": autovacuum_workers,
+            "autovacuum_work_mem_bytes": autovacuum_work_mem_bytes,
             "autovacuum_workers_mem_part": autovacuum_workers_mem_part,
+            "authentication_timeout": authentication_timeout,
             "calc_client_mem_values": calc_client_mem_values,
             "calc_connection_limit": calc_connection_limit,
             "calc_connection_scale": calc_connection_scale,
             "calc_cpu_scale": calc_cpu_scale,
             "calc_disk_scale": calc_disk_scale,
             "calc_system_scores_scale": calc_system_scores_scale,
+            "client_connection_check_interval": client_connection_check_interval,
+            "deadlock_timeout": deadlock_timeout,
+            "default_statistics_target": default_statistics_target,
             "disk_scores": disk_scores,
             "disk_type": disk_type,
             "duty_db": duty_db,
+            "effective_cache_size_bytes": effective_cache_size_bytes,
+            "effective_io_concurrency": effective_io_concurrency,
             "float": float,
+            "hash_mem_multiplier": hash_mem_multiplier,
+            "idle_in_transaction_session_timeout": idle_in_transaction_session_timeout,
+            "idle_session_timeout": idle_session_timeout,
             "int": int,
+            "io_combine_limit_bytes": io_combine_limit_bytes,
+            "io_max_combine_limit_bytes": io_max_combine_limit_bytes,
+            "io_workers": io_workers,
+            "jit": jit,
+            "jit_above_cost": jit_above_cost,
+            "jit_inline_above_cost": jit_inline_above_cost,
+            "jit_optimize_above_cost": jit_optimize_above_cost,
+            "logical_decoding_work_mem_bytes": logical_decoding_work_mem_bytes,
+            "logical_worker_budget": logical_worker_budget,
+            "lock_timeout": lock_timeout,
+            "log_min_duration_statement": log_min_duration_statement,
             "maint_max_conns": maint_max_conns,
+            "maintenance_io_concurrency": maintenance_io_concurrency,
             "maintenance_conns_mem_part": maintenance_conns_mem_part,
             "maintenance_mem_part": maintenance_mem_part,
+            "maintenance_work_mem_bytes": maintenance_work_mem_bytes,
             "max": max,
             "max_autovac_workers": max_autovac_workers,
-            "max_connections": None,
+            "max_connections": max_connections_value,
+            "max_connections_value": max_connections_value,
             "max_conns": max_conns,
+            "max_locks_per_transaction": max_locks_per_transaction,
+            "max_pred_locks_per_page": max_pred_locks_per_page,
+            "max_pred_locks_per_relation": max_pred_locks_per_relation,
+            "max_pred_locks_per_transaction": max_pred_locks_per_transaction,
+            "max_slot_wal_keep_size_bytes": max_slot_wal_keep_size_bytes,
+            "max_standby_streaming_delay": max_standby_streaming_delay,
+            "max_wal_size_bytes": max_wal_size_bytes,
             "min": min,
             "min_autovac_workers": min_autovac_workers,
             "min_conns": min_conns,
+            "min_parallel_index_scan_size": min_parallel_index_scan_size,
+            "min_parallel_table_scan_size": min_parallel_table_scan_size,
+            "min_wal_size_bytes": min_wal_size_bytes,
             "page_size": page_size,
+            "parallel_apply_workers": parallel_apply_workers,
+            "parallel_maintenance_workers": parallel_maintenance_workers,
+            "parallel_setup_cost": parallel_setup_cost,
+            "parallel_tuple_cost": parallel_tuple_cost,
+            "parallel_worker_budget": parallel_worker_budget,
+            "parallel_workers_per_gather": parallel_workers_per_gather,
+            "pitr_enabled": pitr_enabled,
             "platform": platform,
+            "random_page_cost": random_page_cost,
+            "replication_mode": replication_mode,
             "replication_enabled": replication_enabled,
+            "replication_network_timeout": replication_network_timeout,
+            "replication_slot_budget": replication_slot_budget,
             "round": round,
-            "shared_buffers": None,
+            "shared_buffers": shared_buffers_bytes,
+            "shared_buffers_bytes": shared_buffers_bytes,
             "shared_buffers_part": shared_buffers_part,
+            "shared_preload_libraries_value": shared_preload_libraries_value,
+            "profile_1c_statistics_target": profile_1c_statistics_target,
+            "profile_backend_statistics_target": profile_backend_statistics_target,
+            "sync_workers_per_subscription": sync_workers_per_subscription,
+            "statement_timeout": statement_timeout,
+            "synchronous_commit": synchronous_commit,
+            "synchronous_standby_names": synchronous_standby_names,
             "total_cpu_cores": total_cpu_cores,
             "total_ram_in_bytes": total_ram_in_bytes,
+            "wal_keep_bytes": wal_keep_bytes,
+            "wal_keep_segments": wal_keep_segments,
+            "wal_level": wal_level,
+            "wal_sender_budget": wal_sender_budget,
+            "worker_process_budget": worker_process_budget,
+            "transaction_timeout": transaction_timeout,
+            "tcp_keepalives_count": tcp_keepalives_count,
+            "tcp_keepalives_idle_seconds": tcp_keepalives_idle_seconds,
+            "tcp_keepalives_interval_seconds": tcp_keepalives_interval_seconds,
+            "tcp_user_timeout": tcp_user_timeout,
+            "checkpoint_timeout": checkpoint_timeout,
+            "connection_lock_target": connection_lock_target,
+            "auto_explain_log_min_duration": auto_explain_log_min_duration,
+            "auto_explain_sample_rate": auto_explain_sample_rate,
+            "log_statement_sample_rate": log_statement_sample_rate,
+            "log_transaction_sample_rate": log_transaction_sample_rate,
+            "vacuum_buffer_usage_limit_bytes": vacuum_buffer_usage_limit_bytes,
         }
         rule_evaluator = RuleEvaluator(
             rule_context,
@@ -796,10 +1731,12 @@ class PGConfigurator:
                 DutyDB,
                 PGConfigurator,
                 Platform,
+                ReplicationMode,
                 UnitConverter,
             },
         )
 
+        settings_metadata = self._load_setting_metadata(pg_version)
         config_res = {}
         parameter_details = {}
         overrides = []
@@ -815,8 +1752,6 @@ class PGConfigurator:
                 "debug",
                 getattr(self.args, "debug_mode", False),
             )
-            if debug_enabled:
-                print(f"Processing: {param_name} = {rule_expression}", file=sys.stderr)
 
             try:
                 raw_value = (
@@ -852,20 +1787,249 @@ class PGConfigurator:
                 overrides.append({"parameter": param_name, "from": "base", "to": source})
 
             config_res[param_name] = formatted_value
+            setting_context, context_source = self._setting_context(param_name, settings_metadata)
             parameter_details[param_name] = {
                 "value": formatted_value,
                 "raw_value": raw_value,
                 "source": source,
                 "rule": rule_expression,
-                "apply_mode": (
-                    "restart" if param_name in self.restart_required_settings else "reload"
-                ),
+                "rule_kind": "expression" if rule_expression is not None else "constant",
+                "context": setting_context,
+                "context_source": context_source,
+                "apply_mode": self._apply_mode_for_context(setting_context),
             }
+            if debug_enabled:
+                print(
+                    "# rule {}: source={}, kind={}, expression={}, raw={!r}, value={}".format(
+                        param_name,
+                        source,
+                        parameter_details[param_name]["rule_kind"],
+                        rule_expression,
+                        raw_value,
+                        formatted_value,
+                    ),
+                    file=sys.stderr,
+                )
             if param_name.isidentifier():
                 rule_context[param_name] = raw_value
 
         config_res = dict(sorted(config_res.items()))
-        self._validate_config_parameters(config_res, pg_version)
+        allowed_extension_prefixes = required_extensions | set(
+            normalized_available_extensions or ()
+        )
+        self._validate_config_parameters(
+            config_res,
+            pg_version,
+            allowed_extension_prefixes=allowed_extension_prefixes,
+            snapshot_validated_extension_prefixes={
+                name
+                for name in required_extensions
+                if EXTENSION_SPECS[name]["settings_validation"] == "pg_settings_snapshot"
+            },
+        )
+
+        if config_res.get("full_page_writes") != "on" or config_res.get("fsync") != "on":
+            raise ValueError("Bundled safety invariant requires fsync=on and full_page_writes=on")
+        if config_res.get("synchronous_commit") == "remote_apply" and not (
+            synchronous_standby_names.strip()
+        ):
+            raise ValueError("synchronous_commit=remote_apply requires synchronous_standby_names")
+        if config_res.get("synchronous_commit") not in {"on", "remote_apply"}:
+            raise ValueError(
+                "Bundled safety invariant requires synchronous_commit=on or remote_apply"
+            )
+        if config_res.get("wal_level") == "minimal" and (pitr_enabled or replication_enabled):
+            raise ValueError("wal_level=minimal conflicts with PITR or replication")
+        if config_res.get("logging_collector") != "on" or "csvlog" not in config_res.get(
+            "log_destination", ""
+        ):
+            raise ValueError("Bundled observability invariant requires CSV logging collector")
+        preloaded_libraries = {
+            library.strip()
+            for library in config_res.get("shared_preload_libraries", "").strip("'").split(",")
+            if library.strip()
+        }
+        if not MANDATORY_COMMON_EXTENSIONS.issubset(preloaded_libraries):
+            raise ValueError(
+                "Bundled observability invariant requires auto_explain and pg_stat_statements"
+            )
+
+        max_worker_processes = int(config_res["max_worker_processes"])
+        max_parallel_workers = int(
+            config_res.get("max_parallel_workers", config_res["max_parallel_workers_per_gather"])
+        )
+        max_logical_workers = int(config_res.get("max_logical_replication_workers", 0))
+        required_worker_processes = (
+            max_parallel_workers + max_logical_workers + extension_worker_reserve + 2
+        )
+        if max_worker_processes < required_worker_processes:
+            raise ValueError(
+                "max_worker_processes must reserve capacity for parallel, logical, "
+                "extension, and maintenance workers"
+            )
+        if int(config_res.get("max_sync_workers_per_subscription", 0)) > max_logical_workers:
+            raise ValueError("max_sync_workers_per_subscription exceeds logical worker capacity")
+        if (
+            int(config_res.get("max_parallel_apply_workers_per_subscription", 0))
+            > max_logical_workers
+        ):
+            raise ValueError(
+                "max_parallel_apply_workers_per_subscription exceeds logical worker capacity"
+            )
+        if int(config_res["max_parallel_workers_per_gather"]) > max_worker_processes:
+            raise ValueError("max_parallel_workers_per_gather exceeds worker-process capacity")
+        if int(config_res.get("max_parallel_maintenance_workers", 0)) > max_parallel_workers:
+            raise ValueError("max_parallel_maintenance_workers exceeds parallel worker capacity")
+
+        reserved_connection_total = int(config_res["superuser_reserved_connections"]) + int(
+            config_res.get("reserved_connections", 0)
+        )
+        if reserved_connection_total >= int(config_res["max_connections"]):
+            raise ValueError(
+                "superuser_reserved_connections plus reserved_connections must be below "
+                "max_connections"
+            )
+        if UnitConverter.size_from(
+            config_res["effective_cache_size"], system=UnitConverter.sys_pg
+        ) < UnitConverter.size_from(config_res["shared_buffers"], system=UnitConverter.sys_pg):
+            raise ValueError("effective_cache_size must not be below shared_buffers")
+        if UnitConverter.size_from(
+            config_res["min_wal_size"], system=UnitConverter.sys_pg
+        ) > UnitConverter.size_from(config_res["max_wal_size"], system=UnitConverter.sys_pg):
+            raise ValueError("min_wal_size must not exceed max_wal_size")
+        if int(config_res["max_pred_locks_per_transaction"]) > int(
+            config_res["max_locks_per_transaction"]
+        ):
+            raise ValueError(
+                "max_pred_locks_per_transaction must not exceed max_locks_per_transaction"
+            )
+        for predicate_lock_setting in (
+            "max_pred_locks_per_page",
+            "max_pred_locks_per_relation",
+        ):
+            if int(config_res.get(predicate_lock_setting, 0)) > int(
+                config_res["max_pred_locks_per_transaction"]
+            ):
+                raise ValueError(
+                    f"{predicate_lock_setting} must not exceed max_pred_locks_per_transaction"
+                )
+        if int(config_res.get("autovacuum_worker_slots", 0)) and int(
+            config_res["autovacuum_max_workers"]
+        ) > int(config_res["autovacuum_worker_slots"]):
+            raise ValueError("autovacuum_max_workers exceeds autovacuum_worker_slots")
+        if int(config_res["default_statistics_target"]) not in statistics_tiers:
+            raise ValueError("default_statistics_target must use a bounded statistics tier")
+        if "jit" in config_res:
+            if float(config_res["jit_inline_above_cost"]) < float(config_res["jit_above_cost"]):
+                raise ValueError("jit_inline_above_cost must not be below jit_above_cost")
+            if float(config_res["jit_optimize_above_cost"]) < float(config_res["jit_above_cost"]):
+                raise ValueError("jit_optimize_above_cost must not be below jit_above_cost")
+        if "io_max_combine_limit" in config_res and UnitConverter.size_from(
+            config_res["io_combine_limit"], system=UnitConverter.sys_pg
+        ) > UnitConverter.size_from(
+            config_res["io_max_combine_limit"], system=UnitConverter.sys_pg
+        ):
+            raise ValueError("io_combine_limit must not exceed io_max_combine_limit")
+        if (
+            "vacuum_buffer_usage_limit" in config_res
+            and UnitConverter.size_from(
+                config_res["vacuum_buffer_usage_limit"], system=UnitConverter.sys_pg
+            )
+            > UnitConverter.size_from(config_res["shared_buffers"], system=UnitConverter.sys_pg) / 8
+        ):
+            raise ValueError("vacuum_buffer_usage_limit must not exceed shared_buffers / 8")
+        if "profile_1c" in selected_profiles:
+            if int(config_res["max_locks_per_transaction"]) < 512:
+                raise ValueError("profile_1c requires at least 512 locks per transaction")
+            if int(config_res["max_parallel_workers_per_gather"]) != 0:
+                raise ValueError("profile_1c requires parallel query execution to be disabled")
+            if config_res.get("enable_mergejoin") != "off":
+                raise ValueError("profile_1c requires enable_mergejoin=off")
+            if "jit" in config_res and config_res["jit"] != "off":
+                raise ValueError("profile_1c requires jit=off")
+
+        timeout_seconds = {
+            "5s": 5,
+            "10s": 10,
+            "15s": 15,
+            "1min": 60,
+            "5min": 300,
+            "10min": 600,
+            "15min": 900,
+            "30min": 1800,
+            "1h": 3600,
+            "2h": 7200,
+            "4h": 14400,
+            "8h": 28800,
+        }
+        if (
+            timeout_seconds[config_res["lock_timeout"]]
+            >= timeout_seconds[config_res["statement_timeout"]]
+        ):
+            raise ValueError("lock_timeout must be shorter than statement_timeout")
+        if "transaction_timeout" in config_res and timeout_seconds[
+            config_res["transaction_timeout"]
+        ] <= max(
+            timeout_seconds[config_res["statement_timeout"]],
+            timeout_seconds[config_res["idle_in_transaction_session_timeout"]],
+        ):
+            raise ValueError(
+                "transaction_timeout must exceed statement_timeout and "
+                "idle_in_transaction_session_timeout"
+            )
+
+        actual_max_connections = int(config_res["max_connections"])
+        actual_active_sessions = min(actual_max_connections, max(4, cpu_threads * 2))
+        work_mem_bytes = UnitConverter.size_from(
+            config_res["work_mem"], system=UnitConverter.sys_pg
+        )
+        temp_buffers_bytes = UnitConverter.size_from(
+            config_res["temp_buffers"], system=UnitConverter.sys_pg
+        )
+        maintenance_work_mem_actual = UnitConverter.size_from(
+            config_res["maintenance_work_mem"], system=UnitConverter.sys_pg
+        )
+        autovacuum_work_mem_actual = UnitConverter.size_from(
+            config_res["autovacuum_work_mem"], system=UnitConverter.sys_pg
+        )
+        hash_multiplier_actual = float(config_res.get("hash_mem_multiplier", 1.0))
+        client_memory_envelope = actual_active_sessions * (
+            temp_buffers_bytes
+            + work_mem_bytes * work_mem_concurrency_factor * hash_multiplier_actual
+        )
+        maintenance_memory_envelope = (
+            maintenance_work_mem_actual * maint_max_conns
+            + autovacuum_work_mem_actual * int(config_res["autovacuum_max_workers"])
+        )
+        logical_decoding_memory_envelope = 0
+        if (
+            replication_mode == ReplicationMode.LOGICAL
+            and "logical_decoding_work_mem" in config_res
+        ):
+            logical_decoding_memory_envelope = UnitConverter.size_from(
+                config_res["logical_decoding_work_mem"], system=UnitConverter.sys_pg
+            ) * max(1, effective_logical_subscriptions)
+        lock_process_count = (
+            actual_max_connections
+            + max_worker_processes
+            + int(config_res["autovacuum_max_workers"])
+            + int(config_res["max_wal_senders"])
+        )
+        lock_memory_envelope = (
+            int(config_res["max_locks_per_transaction"]) * lock_process_count * 270
+            + int(config_res["max_pred_locks_per_transaction"]) * actual_max_connections * 64
+        )
+        memory_envelope_bytes = (
+            UnitConverter.size_from(config_res["shared_buffers"], system=UnitConverter.sys_pg)
+            + client_memory_envelope
+            + maintenance_memory_envelope
+            + logical_decoding_memory_envelope
+            + lock_memory_envelope
+            + actual_max_connections * backend_memory_reserve_in_bytes
+        )
+        if memory_envelope_bytes > total_ram_in_bytes * 0.9:
+            raise ValueError("Calculated concurrent memory envelope exceeds 90% of available RAM")
+
         self.last_inputs = {
             "available_extensions": (
                 sorted(normalized_available_extensions)
@@ -877,22 +2041,89 @@ class PGConfigurator:
             "disk_score": disk_scores,
             "disk_score_source": "explicit" if disk_score is not None else "disk_type",
             "disk_type": disk_type.value,
+            "db_size_bytes": (
+                int(database_size_in_bytes) if database_size_in_bytes is not None else None
+            ),
             "duty_db": duty_db.value,
+            "logical_subscription_count": effective_logical_subscriptions,
+            "peak_wal_rate_bytes_per_second": peak_wal_rate_in_bytes,
+            "pitr_enabled": pitr_enabled,
             "pg_version": pg_version,
             "profiles": selected_profiles,
             "ram_bytes": ram_in_bytes,
+            "replica_count": effective_replica_count,
+            "replica_outage_tolerance_seconds": replica_outage_tolerance,
             "replication_enabled": replication_enabled,
+            "replication_mode": replication_mode.value,
             "reserved_ram_percent": reserved_ram_percent,
             "reserved_system_ram_bytes": reserved_system_ram_in_bytes,
+            "synchronous_standby_names": synchronous_standby_names,
+            "wal_disk_budget_bytes": wal_disk_budget_in_bytes,
+            "wal_segment_size_bytes": wal_segment_size_in_bytes,
             "work_mem_concurrency_factor": work_mem_concurrency_factor,
         }
+        self.last_extensions = [
+            {
+                "availability": (
+                    "declared_available"
+                    if normalized_available_extensions is not None
+                    and extension in normalized_available_extensions
+                    else "unverified"
+                ),
+                "availability_source": (
+                    "caller_inventory" if normalized_available_extensions is not None else None
+                ),
+                "name": extension,
+                "provider": EXTENSION_SPECS[extension]["provider"],
+                "settings_validation": EXTENSION_SPECS[extension]["settings_validation"],
+                "supported_versions": list(EXTENSION_SPECS[extension]["supported_versions"]),
+            }
+            for extension in EXTENSION_PRELOAD_ORDER
+            if extension in required_extensions
+        ]
         self.last_calculation = {
+            "active_query_sessions": actual_active_sessions,
             "available_ram_bytes": int(total_ram_in_bytes),
+            "autovacuum_worker_budget": autovacuum_workers,
+            "autovacuum_naptime": autovacuum_naptime,
+            "autovacuum_analyze_scale_factor": autovacuum_analyze_scale_factor,
+            "autovacuum_vacuum_scale_factor": autovacuum_vacuum_scale_factor,
+            "checkpoint_timeout_seconds": checkpoint_timeout_seconds,
+            "client_memory_envelope_bytes": int(client_memory_envelope),
             "connection_capacity": connection_capacity,
+            "connections_per_cpu": connections_per_cpu,
             "cpu_score": round(cpu_scores, 4),
             "disk_score": round(disk_scores, 4),
+            "effective_io_concurrency": effective_io_concurrency,
+            "effective_cache_size_bytes": int(effective_cache_size_bytes),
+            "default_statistics_target": default_statistics_target,
+            "statistics_resource_cap": statistics_resource_cap,
+            "statistics_size_multiplier": statistics_size_multiplier,
+            "profile_1c_statistics_target": profile_1c_statistics_target,
+            "profile_backend_statistics_target": profile_backend_statistics_target,
+            "parallel_setup_cost": parallel_setup_cost,
+            "parallel_tuple_cost": parallel_tuple_cost,
+            "min_parallel_table_scan_size": min_parallel_table_scan_size,
+            "min_parallel_index_scan_size": min_parallel_index_scan_size,
+            "io_combine_limit_bytes": int(io_combine_limit_bytes),
+            "io_max_combine_limit_bytes": int(io_max_combine_limit_bytes),
+            "vacuum_buffer_usage_limit_bytes": int(vacuum_buffer_usage_limit_bytes),
+            "logical_worker_budget": logical_worker_budget,
+            "logical_decoding_memory_envelope_bytes": int(logical_decoding_memory_envelope),
+            "lock_memory_envelope_bytes": int(lock_memory_envelope),
+            "maintenance_memory_envelope_bytes": int(maintenance_memory_envelope),
+            "memory_envelope_bytes": int(memory_envelope_bytes),
+            "parallel_worker_budget": parallel_worker_budget,
             "ram_score": round(ram_scores, 4),
-            "system_score": round(system_scores, 4),
+            "network_failure_detection_seconds": network_failure_detection_seconds,
+            "replication_network_timeout_seconds": int(
+                replication_network_timeout.removesuffix("s")
+            ),
+            "replication_slot_budget": replication_slot_budget,
+            "wal_keep_bytes": int(wal_keep_bytes),
+            "wal_sender_budget": wal_sender_budget,
+            "worker_process_budget": worker_process_budget,
+            "work_mem_cap_bytes": duty_work_mem_cap_bytes,
         }
         self.last_parameter_details = dict(sorted(parameter_details.items()))
         self.last_overrides = overrides
@@ -998,6 +2229,7 @@ class PGConfigurator:
             .isoformat()
             .replace("+00:00", "Z"),
             "inputs": self.last_inputs,
+            "extensions": self.last_extensions,
             "calculation": self.last_calculation,
             "parameters": self.last_parameter_details,
             "overrides": self.last_overrides,
@@ -1031,17 +2263,26 @@ class PGConfigurator:
         parser.add_argument("--output-file-name", help="Save to file", type=str, default="")
         parser.add_argument(
             "--db-cpu",
-            help="Available CPU cores, (default: %(default)s)",
+            help="Available CPU cores; decimal cores and millicores such as 500m are accepted",
             type=str,
             default=psutil.cpu_count(),
         )
         parser.add_argument(
             "--db-ram",
-            help="Available RAM memory, (default: %(default)s)",
+            help="Physical RAM with an IEC suffix such as Mi, Gi, or Ti",
             type=str,
             default=UnitConverter.size_to(
                 psutil.virtual_memory().total, system=UnitConverter.sys_iec
             ),
+        )
+        parser.add_argument(
+            "--db-size",
+            help=(
+                "Optional logical database size with an IEC suffix; selects a bounded "
+                "default_statistics_target tier"
+            ),
+            type=str,
+            default=mca["db_size"],
         )
         parser.add_argument(
             "--db-disk-type",
@@ -1065,9 +2306,46 @@ class PGConfigurator:
         )
         parser.add_argument(
             "--replication-enabled",
-            help="Replication is enabled, (default: %(default)s)",
+            help=(
+                "Compatibility switch: true maps to physical and false to none; when both "
+                "replication options are explicit they must agree"
+            ),
             type=parse_bool,
             default=mca["replication_enabled"],
+        )
+        parser.add_argument(
+            "--replication-mode",
+            help="Required replication capability: none, physical, or logical",
+            type=ReplicationMode,
+            choices=list(ReplicationMode),
+            default=mca["replication_mode"],
+        )
+        parser.add_argument(
+            "--pitr-enabled",
+            help=(
+                "Keep wal_level PITR-compatible; backup and archive transport remain a "
+                "pg_stand responsibility, (default: %(default)s)"
+            ),
+            type=parse_bool,
+            default=mca["pitr_enabled"],
+        )
+        parser.add_argument(
+            "--synchronous-standby-names",
+            help="Value for synchronous_standby_names; enables truthful remote_apply",
+            type=str,
+            default=mca["synchronous_standby_names"],
+        )
+        parser.add_argument(
+            "--replica-count",
+            help="Expected physical replicas, (default: %(default)s)",
+            type=int,
+            default=mca["replica_count"],
+        )
+        parser.add_argument(
+            "--logical-subscription-count",
+            help="Expected logical subscriptions on this node, (default: %(default)s)",
+            type=int,
+            default=mca["logical_subscription_count"],
         )
         parser.add_argument(
             "--pg-version",
@@ -1096,13 +2374,13 @@ class PGConfigurator:
         )
         parser.add_argument(
             "--client-mem-part",
-            help="Memory part for all available connections, (default: %(default)s)",
+            help="RAM fraction for concurrently active query memory, (default: %(default)s)",
             type=float,
             default=mca["client_mem_part"],
         )
         parser.add_argument(
             "--maintenance-mem-part",
-            help="Memory part for maintenance connections, (default: %(default)s)",
+            help="RAM fraction shared by maintenance and autovacuum, (default: %(default)s)",
             type=float,
             default=mca["maintenance_mem_part"],
         )
@@ -1126,6 +2404,30 @@ class PGConfigurator:
             ),
             type=float,
             default=mca["work_mem_concurrency_factor"],
+        )
+        parser.add_argument(
+            "--peak-wal-rate",
+            help="Expected peak WAL generation per second, (default: %(default)s)",
+            type=str,
+            default=mca["peak_wal_rate"],
+        )
+        parser.add_argument(
+            "--replica-outage-tolerance",
+            help="WAL retention target in seconds, (default: %(default)s)",
+            type=int,
+            default=mca["replica_outage_tolerance"],
+        )
+        parser.add_argument(
+            "--wal-disk-budget",
+            help="Total disk budget for pg_wal and retained WAL, (default: %(default)s)",
+            type=str,
+            default=mca["wal_disk_budget"],
+        )
+        parser.add_argument(
+            "--wal-segment-size",
+            help="Actual cluster WAL segment size used for WAL sizing, (default: %(default)s)",
+            type=str,
+            default=mca["wal_segment_size"],
         )
         parser.add_argument(
             "--min-conns",
@@ -1166,15 +2468,15 @@ class PGConfigurator:
         parser.add_argument(
             "--common-conf",
             help=(
-                "Add common postgresql.conf settings such as statistics "
-                "collector and logging options"
+                "Keep the mandatory version-aware logging, statistics, and observability "
+                "configuration enabled; --no-common-conf is rejected"
             ),
-            action="store_true",
-            default=False,
+            action=argparse.BooleanOptionalAction,
+            default=mca["common_conf"],
         )
         parser.add_argument(
             "--platform",
-            help="Platform on which the DB is running, (default: %(default)s)",
+            help="Target OS; controls availability of TCP timeout features, (default: %(default)s)",
             type=Platform,
             choices=list(Platform),
             default=mca["platform"].value,
@@ -1196,7 +2498,10 @@ class PGConfigurator:
         )
         parser.add_argument(
             "--available-extensions",
-            help="Comma-separated extensions available on the target PostgreSQL installation",
+            help=(
+                "Caller-declared extension inventory for the selected target major; this "
+                "command does not perform a live target preflight"
+            ),
             type=str,
             default=None,
         )
@@ -1228,11 +2533,6 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
             "{} pg-configurator started".format(datetime.datetime.now().isoformat(" ")),
             file=sys.stderr,
         )
-        for argument_name, argument_value in vars(args).items():
-            print(
-                f"# {argument_name} = {argument_value}",
-                file=sys.stderr,
-            )
 
     if args.version:
         result = PGConfiguratorResult(
@@ -1266,6 +2566,11 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         disk_type=args.db_disk_type,
         duty_db=args.db_duty,
         replication_enabled=args.replication_enabled,
+        replication_mode=args.replication_mode,
+        pitr_enabled=args.pitr_enabled,
+        synchronous_standby_names=args.synchronous_standby_names,
+        replica_count=args.replica_count,
+        logical_subscription_count=args.logical_subscription_count,
         pg_version=args.pg_version,
         reserved_ram_percent=args.reserved_ram_percent,
         reserved_system_ram=args.reserved_system_ram,
@@ -1285,8 +2590,18 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         conf_profiles=args.conf_profiles,
         disk_score=args.disk_score,
         work_mem_concurrency_factor=args.work_mem_concurrency_factor,
+        peak_wal_rate=args.peak_wal_rate,
+        replica_outage_tolerance=args.replica_outage_tolerance,
+        wal_disk_budget=args.wal_disk_budget,
+        wal_segment_size=args.wal_segment_size,
         available_extensions=args.available_extensions,
+        db_size=args.db_size,
     )
+    if args.debug:
+        print(
+            "# normalized_inputs = " + json.dumps(pgc.last_inputs, sort_keys=True),
+            file=sys.stderr,
+        )
     artifact = pgc.build_artifact(conf)
     output_format = (
         args.output_format
@@ -1299,9 +2614,9 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
     elif output_format == OutputFormat.JSON:
         output = json.dumps(artifact, indent=2, sort_keys=True) + "\n"
     else:
-        patroni_conf = {
-            "postgresql": {"parameters": {key: value.strip("'") for key, value in conf.items()}}
-        }
+        parameters = {key: value.strip("'") for key, value in conf.items()}
+        parameters["max_replication_slots"] = str(max(4, int(parameters["max_replication_slots"])))
+        patroni_conf = {"postgresql": {"parameters": parameters}}
         output = json.dumps(patroni_conf, indent=2, sort_keys=True) + "\n"
 
     _write_output(output, args.output_file_name)
