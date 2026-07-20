@@ -34,6 +34,7 @@ from pg_configurator.conf_profiles import (
     backend_perf_alg_set,
     ext_alg_set,
 )
+from pg_configurator.orchestration import artifact_hash, capabilities, envelope
 from pg_configurator.rule_engine import RuleEvaluationError, RuleEvaluator
 from pg_configurator.version import __version__
 
@@ -2236,6 +2237,7 @@ class PGConfigurator:
             "warnings": self.last_warnings,
             "postgresql_conf": config,
         }
+        artifact["artifact_hash"] = artifact_hash(artifact)
         self.last_artifact = artifact
         return artifact
 
@@ -2246,6 +2248,34 @@ class PGConfigurator:
 
         parser.add_argument(
             "--version", help="Show the version number and exit", action="store_true", default=False
+        )
+        parser.add_argument(
+            "--capabilities",
+            help=argparse.SUPPRESS,
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--machine",
+            help=argparse.SUPPRESS,
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--request-id",
+            help=argparse.SUPPRESS,
+            default=None,
+        )
+        parser.add_argument(
+            "--input-json",
+            help=argparse.SUPPRESS,
+            default=None,
+        )
+        parser.add_argument(
+            "--validate-input",
+            help=argparse.SUPPRESS,
+            action="store_true",
+            default=False,
         )
         parser.add_argument(
             "--debug",
@@ -2518,12 +2548,97 @@ class PGConfigurator:
         return parser
 
 
+_ORCHESTRATION_ONLY_DESTINATIONS = {
+    "capabilities",
+    "debug",
+    "input_json",
+    "machine",
+    "output_file_name",
+    "request_id",
+    "settings_history",
+    "specific_setting_history",
+    "validate_input",
+    "version",
+}
+
+
+def _input_json_path(arguments: list[str]) -> str | None:
+    for index, argument in enumerate(arguments):
+        if argument.startswith("--input-json="):
+            return argument.partition("=")[2]
+        if argument == "--input-json":
+            if index + 1 >= len(arguments):
+                raise ValueError("--input-json requires a file path or - for stdin")
+            return arguments[index + 1]
+    return None
+
+
+def _arguments_from_input_json(parser: argparse.ArgumentParser, arguments: list[str]) -> list[str]:
+    input_path = _input_json_path(arguments)
+    if input_path is None:
+        return arguments
+    if input_path == "-":
+        document = json.load(sys.stdin)
+    else:
+        with open(input_path, encoding="utf-8") as input_file:
+            document = json.load(input_file)
+    if not isinstance(document, dict):
+        raise ValueError("--input-json must contain a JSON object")
+    if "inputs" in document:
+        schema_version = document.get("schema_version")
+        if schema_version != "pg_configurator/input-v1":
+            raise ValueError(
+                "JSON input with an inputs field requires schema_version=pg_configurator/input-v1"
+            )
+        document = document["inputs"]
+        if not isinstance(document, dict):
+            raise ValueError("input JSON field inputs must be an object")
+
+    actions = {
+        action.dest: action
+        for action in parser._actions
+        if action.option_strings and action.dest not in _ORCHESTRATION_ONLY_DESTINATIONS
+    }
+    normalized_document = {str(key).replace("-", "_"): value for key, value in document.items()}
+    unknown = sorted(set(normalized_document).difference(actions))
+    if unknown:
+        raise ValueError("unknown input JSON field(s): " + ", ".join(unknown))
+
+    generated: list[str] = []
+    for destination in sorted(normalized_document):
+        value = normalized_document[destination]
+        if value is None:
+            continue
+        action = actions[destination]
+        positive_option = next(
+            (
+                option
+                for option in action.option_strings
+                if option.startswith("--") and not option.startswith("--no-")
+            ),
+            action.option_strings[0],
+        )
+        if isinstance(action, argparse.BooleanOptionalAction):
+            if not isinstance(value, bool):
+                raise ValueError(f"input JSON field {destination} must be boolean")
+            generated.append(positive_option if value else "--no-" + positive_option[2:])
+        elif isinstance(value, bool):
+            generated.extend([positive_option, "true" if value else "false"])
+        elif isinstance(value, (dict, list)):
+            raise ValueError(f"input JSON field {destination} must be a scalar value")
+        else:
+            generated.extend([positive_option, str(value)])
+    # Generated arguments precede the original command line so explicitly
+    # supplied CLI options retain their familiar last-value-wins behavior.
+    return [*generated, *arguments]
+
+
 def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
     parser = PGConfigurator.get_arg_parser()
     if external_args is None:
-        args = parser.parse_args()
+        args = parser.parse_args(_arguments_from_input_json(parser, sys.argv[1:]))
     elif isinstance(external_args, (list, tuple)):
-        args = parser.parse_args(external_args)
+        args = parser.parse_args(_arguments_from_input_json(parser, list(external_args)))
     else:
         args = external_args
 
@@ -2532,6 +2647,22 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         print(
             "{} pg-configurator started".format(datetime.datetime.now().isoformat(" ")),
             file=sys.stderr,
+        )
+
+    if args.capabilities:
+        payload = capabilities()
+        if args.machine:
+            payload = envelope(
+                "capabilities",
+                "succeeded",
+                request_id=args.request_id,
+                result=payload,
+            )
+        _write_output(json.dumps(payload, indent=2, sort_keys=True) + "\n", args.output_file_name)
+        return PGConfiguratorResult(
+            result_code=ResultCode.DONE,
+            result_data=payload,
+            artifact=payload,
         )
 
     if args.version:
@@ -2603,21 +2734,68 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
             file=sys.stderr,
         )
     artifact = pgc.build_artifact(conf)
+    if args.validate_input:
+        validation = {
+            "valid": True,
+            "normalized_inputs": pgc.last_inputs,
+            "warnings": list(pgc.last_warnings),
+            "candidate_hash": artifact["artifact_hash"],
+        }
+        payload = (
+            envelope(
+                "validate-input",
+                "succeeded",
+                request_id=args.request_id,
+                result=validation,
+                warnings=list(pgc.last_warnings),
+            )
+            if args.machine
+            else validation
+        )
+        _write_output(json.dumps(payload, indent=2, sort_keys=True) + "\n", args.output_file_name)
+        return PGConfiguratorResult(
+            result_code=ResultCode.DONE,
+            result_data=validation,
+            artifact=artifact,
+            warnings=list(pgc.last_warnings),
+        )
     output_format = (
         args.output_format
         if isinstance(args.output_format, OutputFormat)
         else OutputFormat(args.output_format)
     )
 
-    if output_format == OutputFormat.CONF:
+    if args.machine:
+        machine_result = {
+            "output_format": output_format.value,
+            "artifact": artifact,
+        }
+        if output_format == OutputFormat.PATRONI_JSON:
+            machine_result["document"] = _patroni_document(conf)
+        payload = envelope(
+            "generate",
+            "succeeded",
+            request_id=args.request_id,
+            result=machine_result,
+            artifacts=[
+                {
+                    "kind": "PostgreSQLConfiguration",
+                    "schema_version": artifact["schema_version"],
+                    "hash": artifact["artifact_hash"],
+                    "path": (
+                        os.path.abspath(args.output_file_name) if args.output_file_name else None
+                    ),
+                }
+            ],
+            warnings=list(pgc.last_warnings),
+        )
+        output = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    elif output_format == OutputFormat.CONF:
         output = _render_postgresql_conf(conf, artifact)
     elif output_format == OutputFormat.JSON:
         output = json.dumps(artifact, indent=2, sort_keys=True) + "\n"
     else:
-        parameters = {key: value.strip("'") for key, value in conf.items()}
-        parameters["max_replication_slots"] = str(max(4, int(parameters["max_replication_slots"])))
-        patroni_conf = {"postgresql": {"parameters": parameters}}
-        output = json.dumps(patroni_conf, indent=2, sort_keys=True) + "\n"
+        output = json.dumps(_patroni_document(conf), indent=2, sort_keys=True) + "\n"
 
     _write_output(output, args.output_file_name)
     return PGConfiguratorResult(
@@ -2641,6 +2819,12 @@ def _render_postgresql_conf(config, artifact):
     lines.append("")
     lines.extend("{} = {}".format(*item) for item in config.items())
     return "\n".join(lines) + "\n"
+
+
+def _patroni_document(config):
+    parameters = {key: value.strip("'") for key, value in config.items()}
+    parameters["max_replication_slots"] = str(max(4, int(parameters["max_replication_slots"])))
+    return {"postgresql": {"parameters": parameters}}
 
 
 def _write_output(output, output_file_name):

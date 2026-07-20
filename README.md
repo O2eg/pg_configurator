@@ -823,6 +823,11 @@ artifact = configurator.build_artifact(config)
 `PGConfiguratorResult` is an instance-based result object; results and warnings
 are not shared between calls.
 
+## Orchestrator integration
+
+The normal CLI remains human-oriented. Authors of `pg_play`-compatible
+orchestrators can use the separate [versioned machine contract](docs/pg_play-integration.md).
+
 ## Testing and release checks
 
 Unit tests:
@@ -852,7 +857,7 @@ python -m twine check dist/*
 ```
 
 Tagged releases are built and published through PyPI Trusted Publishing. A tag
-must match the package version, for example `v26.1.21`.
+must match the package version, for example `v0.9.0`.
 
 ## License and provenance
 

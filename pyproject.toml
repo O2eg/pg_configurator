@@ -57,12 +57,14 @@ Repository = "https://github.com/O2eg/pg_configurator"
 Issues = "https://github.com/O2eg/pg_configurator/issues"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
 include-package-data = false
 
 [tool.setuptools.dynamic]
 version = { attr = "pg_configurator.version.__version__" }
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["pg_configurator*"]
 namespaces = false
 

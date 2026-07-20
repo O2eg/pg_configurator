@@ -2,6 +2,8 @@ import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from pg_configurator.configurator import DutyDB, PGConfigurator, ReplicationMode, run_pgc
 
@@ -113,6 +115,86 @@ class TestCLIArguments(unittest.TestCase):
 
         parameters = json.loads(stdout.getvalue())["postgresql"]["parameters"]
         self.assertEqual("4", parameters["max_replication_slots"])
+
+    def test_machine_capabilities_use_versioned_envelope(self):
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            run_pgc(["--capabilities", "--machine", "--request-id=test-capabilities"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual("pg_play/component/v1", payload["contract_version"])
+        self.assertEqual("pg_configurator", payload["component"])
+        self.assertEqual("test-capabilities", payload["request_id"])
+        self.assertEqual("succeeded", payload["status"])
+        self.assertIn("generate", payload["result"]["commands"])
+
+    def test_orchestration_plumbing_is_hidden_from_human_help(self):
+        help_text = PGConfigurator.get_arg_parser().format_help()
+
+        for option in (
+            "--capabilities",
+            "--machine",
+            "--request-id",
+            "--input-json",
+            "--validate-input",
+        ):
+            self.assertNotIn(option, help_text)
+
+    def test_input_json_is_strict_and_explicit_cli_values_win(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "input.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "pg_configurator/input-v1",
+                        "inputs": {
+                            "db_cpu": "4",
+                            "db_ram": "8Gi",
+                            "pg_version": "17",
+                            "db_duty": "statistic",
+                            "pitr_enabled": False,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                result = run_pgc(
+                    [
+                        f"--input-json={path}",
+                        "--db-cpu=8",
+                        "--validate-input",
+                        "--machine",
+                    ]
+                )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(8.0, result.artifact["inputs"]["cpu_cores"])
+        self.assertEqual("17", result.artifact["inputs"]["pg_version"])
+        self.assertFalse(result.artifact["inputs"]["pitr_enabled"])
+        self.assertTrue(payload["result"]["valid"])
+
+    def test_machine_patroni_output_contains_exact_applicable_document(self):
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            run_pgc(
+                [
+                    "--db-cpu=16",
+                    "--db-ram=64Gi",
+                    "--pg-version=18",
+                    "--output-format=patroni-json",
+                    "--machine",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        parameters = payload["result"]["document"]["postgresql"]["parameters"]
+        self.assertEqual("4", parameters["max_replication_slots"])
+        self.assertEqual(
+            payload["artifacts"][0]["hash"],
+            payload["result"]["artifact"]["artifact_hash"],
+        )
 
 
 if __name__ == "__main__":
