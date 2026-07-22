@@ -117,7 +117,7 @@ pg-configurator \
   --db-ram=64Gi \
   --pg-version=18 \
   --output-format=json \
-  --output-file-name=candidate.json
+  --out=candidate.json
 ```
 
 Generate Patroni parameter JSON:
@@ -245,7 +245,7 @@ machine running the command when their options are omitted.
 | `--version` | `false` | Print the package version and exit. |
 | `--debug` | `false` | Print normalized inputs, rule sources, expressions, raw values, and formatted values to stderr. |
 | `--output-format=conf\|json\|patroni-json` | `conf` | Select plain `postgresql.conf`, the full versioned artifact, or Patroni parameter JSON. |
-| `--output-file-name=PATH` | stdout | Write output to a file; diagnostics still go to stderr. An existing file is first preserved as `PATH.<timestamp>.bak`. |
+| `--out=PATH` | stdout | Write output to a file; diagnostics still go to stderr. An existing file is first preserved as `PATH.<timestamp>.bak`. `--output-file-name` remains a compatibility alias. |
 
 ### Target and workload
 
@@ -857,7 +857,7 @@ python -m twine check dist/*
 ```
 
 Tagged releases are built and published through PyPI Trusted Publishing. A tag
-must match the package version, for example `v0.9.0`.
+must match the package version, for example `v0.9.1`.
 
 ## License and provenance
 

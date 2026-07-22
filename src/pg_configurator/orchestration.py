@@ -14,6 +14,12 @@ from typing import Any
 from pg_configurator.version import __version__
 
 CONTRACT_VERSION = "pg_play/component/v1"
+CAPABILITY_SCHEMA_VERSION = "pg_play/capabilities/v1"
+MACHINE_INTERFACE = {
+    "machine_flag": "--machine",
+    "request_id_option": "--request-id",
+    "capabilities_option": "--component-capabilities",
+}
 COMPONENT = "pg_configurator"
 
 EXIT_CODES = {
@@ -47,6 +53,8 @@ def artifact_hash(artifact: dict[str, Any]) -> str:
 
 def capabilities() -> dict[str, Any]:
     return {
+        "capability_schema_version": CAPABILITY_SCHEMA_VERSION,
+        "machine_interface": MACHINE_INTERFACE,
         "contract_version": CONTRACT_VERSION,
         "component": COMPONENT,
         "component_version": __version__,
@@ -55,9 +63,18 @@ def capabilities() -> dict[str, Any]:
                 "mutates_target": False,
                 "machine_output": True,
                 "accepts_input_json": True,
+                "accepts_plan_hash": False,
             },
-            "validate-input": {"mutates_target": False, "machine_output": True},
-            "capabilities": {"mutates_target": False, "machine_output": True},
+            "validate-input": {
+                "mutates_target": False,
+                "machine_output": True,
+                "accepts_plan_hash": False,
+            },
+            "capabilities": {
+                "mutates_target": False,
+                "machine_output": True,
+                "accepts_plan_hash": False,
+            },
         },
         "artifact_schemas": [
             "pg_configurator/v1",

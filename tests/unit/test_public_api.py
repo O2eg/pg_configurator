@@ -122,7 +122,7 @@ class TestPublicAPI(unittest.TestCase):
                     "--db-cpu=8",
                     "--db-ram=16Gi",
                     "--output-format=json",
-                    f"--output-file-name={target}",
+                    f"--out={target}",
                 ]
             )
 

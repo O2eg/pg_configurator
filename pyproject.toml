@@ -35,17 +35,17 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "asyncpg>=0.29,<1",
-  "pytest>=7.4",
+  "pytest>=8.3,<9",
   "tomli>=2.0; python_version < '3.11'",
 ]
 dev = [
   "asyncpg>=0.29,<1",
-  "build>=1.2",
-  "pytest>=7.4",
-  "pytest-cov>=4.1",
-  "ruff>=0.6",
+  "build>=1.2,<2",
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<8",
+  "ruff>=0.12,<1",
   "tomli>=2.0; python_version < '3.11'",
-  "twine>=5.1",
+  "twine>=6,<7",
 ]
 
 [project.scripts]

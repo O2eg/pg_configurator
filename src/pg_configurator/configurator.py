@@ -2251,6 +2251,8 @@ class PGConfigurator:
         )
         parser.add_argument(
             "--capabilities",
+            "--component-capabilities",
+            dest="capabilities",
             help=argparse.SUPPRESS,
             action="store_true",
             default=False,
@@ -2290,7 +2292,14 @@ class PGConfigurator:
             choices=list(OutputFormat),
             default=OutputFormat.CONF.value,
         )
-        parser.add_argument("--output-file-name", help="Save to file", type=str, default="")
+        parser.add_argument(
+            "--out",
+            "--output-file-name",
+            dest="output_file_name",
+            help="Save to an exact output file (--output-file-name is a compatibility alias)",
+            type=str,
+            default="",
+        )
         parser.add_argument(
             "--db-cpu",
             help="Available CPU cores; decimal cores and millicores such as 500m are accepted",

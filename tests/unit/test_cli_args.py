@@ -9,6 +9,17 @@ from pg_configurator.configurator import DutyDB, PGConfigurator, ReplicationMode
 
 
 class TestCLIArguments(unittest.TestCase):
+    def test_out_is_the_canonical_output_path_option(self):
+        parser = PGConfigurator.get_arg_parser()
+
+        self.assertEqual(
+            "candidate.conf", parser.parse_args(["--out=candidate.conf"]).output_file_name
+        )
+        self.assertEqual(
+            "legacy.conf",
+            parser.parse_args(["--output-file-name=legacy.conf"]).output_file_name,
+        )
+
     def test_replication_enabled_accepts_false_values(self):
         parser = PGConfigurator.get_arg_parser()
 
@@ -119,13 +130,18 @@ class TestCLIArguments(unittest.TestCase):
     def test_machine_capabilities_use_versioned_envelope(self):
         stdout = StringIO()
         with redirect_stdout(stdout):
-            run_pgc(["--capabilities", "--machine", "--request-id=test-capabilities"])
+            run_pgc(["--component-capabilities", "--machine", "--request-id=test-capabilities"])
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual("pg_play/component/v1", payload["contract_version"])
         self.assertEqual("pg_configurator", payload["component"])
         self.assertEqual("test-capabilities", payload["request_id"])
         self.assertEqual("succeeded", payload["status"])
+        self.assertEqual("pg_play/capabilities/v1", payload["result"]["capability_schema_version"])
+        self.assertEqual(
+            "--component-capabilities",
+            payload["result"]["machine_interface"]["capabilities_option"],
+        )
         self.assertIn("generate", payload["result"]["commands"])
 
     def test_orchestration_plumbing_is_hidden_from_human_help(self):
@@ -133,6 +149,7 @@ class TestCLIArguments(unittest.TestCase):
 
         for option in (
             "--capabilities",
+            "--component-capabilities",
             "--machine",
             "--request-id",
             "--input-json",
@@ -150,7 +167,7 @@ class TestCLIArguments(unittest.TestCase):
                         "inputs": {
                             "db_cpu": "4",
                             "db_ram": "8Gi",
-                            "pg_version": "17",
+                            "pg_version": "18",
                             "db_duty": "statistic",
                             "pitr_enabled": False,
                         },
@@ -171,7 +188,7 @@ class TestCLIArguments(unittest.TestCase):
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual(8.0, result.artifact["inputs"]["cpu_cores"])
-        self.assertEqual("17", result.artifact["inputs"]["pg_version"])
+        self.assertEqual("18", result.artifact["inputs"]["pg_version"])
         self.assertFalse(result.artifact["inputs"]["pitr_enabled"])
         self.assertTrue(payload["result"]["valid"])
 

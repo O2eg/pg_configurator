@@ -7,12 +7,18 @@ This document is for orchestrator authors. Normal users should use the public
 machine transport. Hidden flags do not appear in the primary `--help`:
 
 ```bash
-pg-configurator --machine --request-id config-001 --capabilities
+pg-configurator --machine --request-id config-001 --component-capabilities
 pg-configurator --machine --request-id config-002 \
   --input-json=- --validate-input
 pg-configurator --machine --request-id config-003 \
   --input-json=- --output-format=json
 ```
+
+The capability document uses `pg_play/capabilities/v1`. Every command declares
+the common boolean fields `mutates_target`, `machine_output`, and
+`accepts_plan_hash`. The older hidden `--capabilities` spelling remains an
+alias for compatibility.
+Its `machine_interface` object records these three canonical hidden option names.
 
 Standard input for the last two calls is:
 
