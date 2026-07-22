@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pg-configurator"
 dynamic = ["version"]
-description = "Explainable PostgreSQL configuration candidate generator"
+description = "Explainable, hardware-aware PostgreSQL configuration generator"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
