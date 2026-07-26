@@ -52,7 +52,7 @@ dev = [
 pg-configurator = "pg_configurator.__main__:_cli_entrypoint"
 
 [project.urls]
-Homepage = "https://github.com/O2eg/pg_configurator"
+Homepage = "https://o2eg.com/"
 Repository = "https://github.com/O2eg/pg_configurator"
 Issues = "https://github.com/O2eg/pg_configurator/issues"
 

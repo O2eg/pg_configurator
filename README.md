@@ -1,4 +1,4 @@
-# pg_configurator
+# pg-configurator
 
 - Converts hardware, workload, PostgreSQL major, topology, and storage limits
   into one reproducible configuration candidate instead of an undocumented set
@@ -16,9 +16,12 @@
   same stand can be rebuilt, loaded by `pg_workload`, inspected by `pg_diag`,
   and compared with another candidate.
 
-`pg_configurator` generates an explainable PostgreSQL configuration candidate
+`pg-configurator` generates an explainable PostgreSQL configuration candidate
 from hardware limits, database duty, replication requirements, PostgreSQL
 version, and optional workload profiles.
+
+The distribution and installed command are `pg-configurator`; the import
+package and GitHub repository are named `pg_configurator`.
 
 The algorithm is empirical. Its output is a candidate for an isolated test,
 not a configuration that should be applied to production without validation.
@@ -857,7 +860,7 @@ python -m twine check dist/*
 ```
 
 Tagged releases are built and published through PyPI Trusted Publishing. A tag
-must match the package version, for example `v0.9.1`.
+must match the package version, for example `v0.9.2`.
 
 ## License and provenance
 
