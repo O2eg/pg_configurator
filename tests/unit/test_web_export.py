@@ -73,6 +73,17 @@ class TestExportFreshness(unittest.TestCase):
         }
         self.assertEqual(first, second)
 
+    def test_boolean_optional_help_is_python_version_independent(self):
+        schema = export_web_data.export_input_schema()
+        common_conf = next(item for item in schema["options"] if item["dest"] == "common_conf")
+
+        self.assertEqual(
+            "Keep the mandatory version-aware logging, statistics, and observability "
+            "configuration enabled; --no-common-conf is rejected",
+            common_conf["help"],
+        )
+        self.assertNotIn("%(default)s", common_conf["help"])
+
     def test_export_is_unaffected_by_a_prior_calculation(self):
         # make_conf tags rules with _source and, through prepare_alg_set,
         # that tag reaches the module-level rule data. The export describes the

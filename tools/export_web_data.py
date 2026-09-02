@@ -657,6 +657,19 @@ def _type_name(action: argparse.Action) -> str | None:
     return getattr(action.type, "__name__", str(action.type))
 
 
+def _portable_help(action: argparse.Action) -> str | None:
+    """Return help text without argparse's version-specific decoration."""
+    if action.help == argparse.SUPPRESS:
+        return None
+    help_text = action.help
+    if isinstance(action, argparse.BooleanOptionalAction):
+        # Python 3.10 appends this suffix inside BooleanOptionalAction while
+        # newer runtimes leave the supplied help unchanged. Generated data must
+        # be byte-identical across every Python version in the CI matrix.
+        help_text = help_text.removesuffix(" (default: %(default)s)")
+    return help_text
+
+
 def export_input_schema() -> dict[str, Any]:
     parser = PGConfigurator.get_arg_parser()
     mapping = _make_conf_argument_mapping()
@@ -690,7 +703,7 @@ def export_input_schema() -> dict[str, Any]:
             "default": None if host_derived else _json_scalar(action.default),
             "default_source": "host" if host_derived else "static",
             "hidden": action.help == argparse.SUPPRESS,
-            "help": None if action.help == argparse.SUPPRESS else action.help,
+            "help": _portable_help(action),
             "role": role,
             "make_conf_parameter": mapping.get(dest),
         }
