@@ -79,6 +79,7 @@ testpaths = ["tests"]
 addopts = "-ra"
 markers = [
   "integration: requires Docker and PostgreSQL client tools",
+  "web: differential parity against the JavaScript port; requires Node.js",
 ]
 
 [tool.ruff]

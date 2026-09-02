@@ -23,7 +23,7 @@ class PGConfiguratorResult:
     result_code: ResultCode = ResultCode.UNKNOWN
     result_data: Any = None
     artifact: dict[str, Any] | None = None
-    warnings: list[str] = field(default_factory=list)
+    advisories: list[dict[str, Any]] = field(default_factory=list)
 
 
 def exception_helper(show_traceback=True):

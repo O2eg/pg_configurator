@@ -28,7 +28,71 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest -m 'not integration'
+      - run: pytest -m 'not integration and not web'
+
+  # The JavaScript port is compared with the Python reference on a pinned Node
+  # version. It is a separate job on purpose: the ordinary Python matrix above
+  # must stay usable without Node installed.
+  web-parity:
+    runs-on: ubuntu-24.04
+    needs: unit
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+      - run: python -m pip install -e '.[dev]'
+      - name: Generated data is current
+        run: python tools/export_web_data.py --check
+      - name: JavaScript unit tests
+        run: npm test
+      - name: Differential parity against the Python reference
+        env:
+          PGC_REQUIRE_NODE: "1"
+        run: pytest -m web
+      # The differential suites prove the two implementations agree; this proves
+      # the agreed answer starts a server. One major here, the full matrix stays
+      # in the on-demand docker-integration job.
+      - name: Boot a JavaScript-generated configuration
+        env:
+          PG_CONFIGURATOR_DOCKER_INTEGRATION: "1"
+          PG_CONFIGURATOR_DOCKER_VERSIONS: "18"
+        run: pytest -m integration -k "boots and javascript"
+
+  # The single-file page: it must build reproducibly and run offline in a real
+  # browser. A page that only builds proves nothing.
+  web-page:
+    runs-on: ubuntu-24.04
+    needs: unit
+    strategy:
+      matrix:
+        engine: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade 'pip>=24.3,<26' playwright
+      - run: python -m playwright install --with-deps ${{ matrix.engine }}
+      - name: Build the page
+        run: python3 web/build.py
+      - name: Reproducible-build check
+        run: |
+          cp web/dist/pg-configurator.html /tmp/build1.html
+          python3 web/build.py
+          cmp /tmp/build1.html web/dist/pg-configurator.html
+      - name: Browser regression (${{ matrix.engine }})
+        env:
+          PW_BROWSER: ${{ matrix.engine }}
+        run: python3 web/tools/browser-smoke.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: matrix.engine == 'chromium'
+        with:
+          name: pg-configurator-page
+          path: web/dist/pg-configurator.html
 
   distribution:
     runs-on: ubuntu-24.04
@@ -56,6 +120,47 @@ jobs:
             "${RUNNER_TEMP}/candidate.json" >/dev/null
           "${RUNNER_TEMP}/pg-configurator-wheel-smoke/bin/python" -c \
             'from pg_configurator import __version__; assert __version__'
+
+  # Live demo: the self-contained page, served as GitHub Pages.
+  #
+  # Requires Pages to be enabled with "GitHub Actions" as the source
+  # (repo Settings -> Pages -> Build and deployment -> GitHub Actions).
+  #
+  # It lives here rather than in a workflow of its own so that `needs` is a real
+  # gate. A separate Pages workflow ran its own subset of the checks and
+  # deployed whatever it built, which meant a commit that failed lint or the
+  # differential parity in this workflow still reached users. Nothing is built
+  # here either: the artifact deployed is the exact file the browser regression
+  # opened, downloaded from the job that opened it.
+  pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, web-parity, web-page]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: pg-configurator-page
+          path: _page
+      - name: Stage the demo site
+        run: |
+          mkdir -p _site
+          cp _page/pg-configurator.html _site/index.html
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   docker-integration:
     if: github.event_name == 'workflow_dispatch'

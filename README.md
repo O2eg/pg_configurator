@@ -60,7 +60,7 @@ CPU  RAM  disk  duty  PG major  topology  platform  extension inventory
               +---------------+----------------+
               |               |                |
               v               v                v
-       postgresql.conf   Patroni JSON   pg_configurator/v1 JSON
+       postgresql.conf   Patroni JSON   pg_configurator/v2 JSON
 ```
 
 ## Installation
@@ -257,7 +257,7 @@ machine running the command when their options are omitted.
 | `--db-cpu=CORES` | detected | Available CPU cores. Decimal cores and Kubernetes-style millicores such as `500m` are accepted. |
 | `--db-ram=SIZE` | detected | Physical RAM using IEC units such as `Mi`, `Gi`, or `Ti`. |
 | `--db-size=SIZE` | unknown | Optional logical database size. It selects a bounded `default_statistics_target` tier; omitting it uses only duty and resource capacity. |
-| `--db-disk-type=SATA\|SAS\|SSD\|NVME\|NETWORK` | `SAS` | Fallback storage class used only when no measured score is supplied. |
+| `--db-disk-type=SATA\|SAS\|SSD\|NVME\|NETWORK` | `SSD` | Fallback storage class used only when no measured score is supplied. |
 | `--disk-score=0..100` | inferred | Measured composite storage score; one score consistently drives planner, I/O, and vacuum cost. |
 | `--db-duty=financial\|oltp\|mixed\|statistic` | `mixed` | Workload composition used for connections, memory, autovacuum, timeouts, checkpoints, parallelism, logging, and network baselines. |
 | `--pg-version=9.6\|10..18` | `18` | Target PostgreSQL major and rule/snapshot compatibility contract. |
@@ -312,7 +312,7 @@ backend envelope exceeds 90% of available RAM.
 
 ## Artifact contract
 
-JSON output uses `schema_version: pg_configurator/v1` and contains:
+JSON output uses `schema_version: pg_configurator/v2` and contains:
 
 - normalized, typed inputs;
 - independent CPU, RAM, storage, connection, memory, worker, lock, WAL, and
@@ -329,8 +329,30 @@ JSON output uses `schema_version: pg_configurator/v1` and contains:
 - profile override history;
 - required extension metadata and whether availability was merely declared by
   the caller;
-- warnings and unverified assumptions;
+- `advisories`: what the tool has to say about the configuration it just
+  generated, each one an object with a stable `code`, a `severity`, the
+  `setting` and `actual` value it is about when there is one, and a `message`;
 - a flat `postgresql_conf` mapping for consumers that only need GUC values.
+
+### Advisories
+
+Every advisory is built from the finished configuration, after profiles and
+overrides have been applied, so `actual` is the value the emitted file carries
+and never a draft. They come in three severities, severest first:
+
+| Severity | Means |
+| --- | --- |
+| `warning` | A real risk, or a conflict inside the result. |
+| `assumption` | A premise the calculation rests on and could not check. |
+| `info` | A boundary of what this tool does, or an explanation of a choice. |
+
+`code` is stable across releases and is the field to route on; `message` is
+written for a person and is not. A configuration with no `warning` entries is
+the ordinary case — that separation is the point, because a tool that calls
+everything a warning teaches its reader to skip them.
+
+Rendered `postgresql.conf` output carries the same text as comments, each
+prefixed with its severity.
 
 Diagnostic messages are written to stderr. Stdout remains a valid JSON document
 when `--output-format=json` is selected.
@@ -361,9 +383,15 @@ maintenance + autovacuum: 10%
 OS, backends and reserves: 45%
 ```
 
-The three configurable budgets may use at most 75% of available RAM. This
-preserves memory for PostgreSQL processes, extensions, WAL and lock structures,
-the operating system, and its filesystem cache. `effective_cache_size` includes
+Each budget has its own ceiling: `shared_buffers_part` may go up to 0.8,
+`client_mem_part` and `maintenance_mem_part` up to 0.4. `shared_buffers` is one
+allocation made at startup, while the other two are multiplied by the sessions
+using them at the same time, which is why it may claim the larger share.
+Together the three may use at most 85% of available RAM — below the 90% ceiling
+the calculated memory envelope is held to, because that envelope also counts
+lock tables and the per-backend reserve. This preserves memory for PostgreSQL
+processes, extensions, WAL and lock structures, the operating system, and its
+filesystem cache. `effective_cache_size` includes
 `shared_buffers` and only the OS-cache estimate left after concurrent query,
 maintenance, backend, lock, and logical-decoding reserves are subtracted.
 
@@ -499,16 +527,20 @@ background headroom; parallel maintenance shares the parallel-worker pool.
 `--pitr-enabled` preserves the WAL level needed by a PITR design. It deliberately
 does not invent an `archive_command` or backup destination: credentials,
 retention, object storage, and archive transport belong to
-[pg_stand](https://github.com/O2eg/pg_stand). The artifact warns about this
-deployment boundary so WAL-level capability is
-not mistaken for a working backup chain.
+[pg_stand](https://github.com/O2eg/pg_stand). The artifact records this
+deployment boundary as an advisory so WAL-level capability is not mistaken for
+a working backup chain.
 
 WAL retention uses the same bounded byte target on all major versions when
 replication is enabled:
 
 ```text
 desired retention = peak WAL bytes/second × tolerated replica outage
-retention = min(max(desired retention, 512 MiB), 40% of WAL disk budget)
+retained segments = max(1, min(
+    ceil(max(desired retention, 512 MiB) / segment size),
+    floor(40% of WAL disk budget / segment size) - 1
+))
+retention = retained segments × segment size
 
 max_wal_size = min(
     max(peak WAL rate × checkpoint interval × 2, 1 GiB, 4 segments),
@@ -516,6 +548,13 @@ max_wal_size = min(
 )
 min_wal_size = min(max(max_wal_size / 4, 2 segments), 4 GiB)
 ```
+
+Retention is decided in whole segments rather than in bytes because that is how
+PostgreSQL spends the disk: a byte request is converted down to whole segments,
+and the segment currently being written is retained on top of whatever was
+asked for. Both are subtracted here, so the 40% ceiling holds for what actually
+lands on `pg_wal`, not only for the number the file asks for. The eight-segment
+minimum on the budget is what keeps the retained count from reaching zero.
 
 Configure it with `--peak-wal-rate`, `--replica-outage-tolerance`,
 `--wal-disk-budget`, and the actual `--wal-segment-size`. The disk budget must
@@ -644,7 +683,7 @@ The baseline enables the logging collector with `csvlog`, daily or 256 MiB
 rotation, restrictive file permissions, bounded statement-duration thresholds,
 sampled shorter statements, lock waits, checkpoints, slow autovacuum, and temp
 files above 10 MiB. PostgreSQL cannot enforce a total log-directory size, so
-the artifact always warns that external retention for `pg_log` is required.
+the artifact always records that external retention for `pg_log` is required.
 
 `pg_stat_statements` and `auto_explain` are always preloaded. Expensive
 `auto_explain` timing is disabled, only 1–5% of statements are sampled for
@@ -726,7 +765,7 @@ dependencies are an error. The CLI does not connect to PostgreSQL, inspect
 installed packages, load libraries, or read external-extension GUC metadata.
 Declared names are marked `declared_available`, not `verified`. Without the
 option, generation remains possible for offline planning, but every dependency
-is marked `unverified` and a warning is emitted.
+is marked `unverified` and the artifact records the assumption.
 
 [pg_stand](https://github.com/O2eg/pg_stand) must build the inventory from the
 actual target and must not apply a candidate until package availability,
@@ -755,7 +794,10 @@ and the current
 
 The profile intentionally requests compatibility settings including
 `ssl=off`, `row_security=off`, and `standard_conforming_strings=off`; each is
-reported as a warning. It does **not** adopt the performance-oriented
+reported as a warning. `row_security=off` does not read past a row-level
+security policy — a query that would have one applied fails with an error
+instead, unless the role owns the table or holds `BYPASSRLS`. The profile does
+**not** adopt the performance-oriented
 `synchronous_commit=off` recommendation because that can acknowledge recent
 transactions before they are durable. Patched-distribution-only parameters
 such as `enable_temp_memory_catalog` are not emitted into a vanilla PostgreSQL
@@ -770,7 +812,7 @@ Generation rejects:
 
 - non-positive CPU or RAM;
 - reserves that leave no RAM for PostgreSQL;
-- invalid memory budgets or budgets using more than 75% of available RAM;
+- invalid memory budgets or budgets using more than 85% of available RAM;
 - `min` values greater than corresponding `max` values;
 - unknown PostgreSQL versions, profiles, or incompatible profile combinations;
 - unknown core GUCs and undeclared dotted extension GUCs;
@@ -823,8 +865,55 @@ config = configurator.make_conf("16", "64Gi", pg_version="18")
 artifact = configurator.build_artifact(config)
 ```
 
-`PGConfiguratorResult` is an instance-based result object; results and warnings
-are not shared between calls.
+`PGConfiguratorResult` is an instance-based result object; results and
+advisories are not shared between calls.
+
+## JavaScript build
+
+The same calculation runs in Node and in the browser. The Python package stays
+the reference: a differential suite drives both implementations with the same
+inputs and compares every generated setting, the advisories, the rendered
+`postgresql.conf`, the Patroni document, and the exit code and error text of a
+rejected command line.
+
+```js
+import { createConfigurator, renderConf } from 'pg-configurator-web';
+
+const pgc = await createConfigurator();
+const result = pgc.generate({ cpu_cores: 8, ram_value: '16Gi', pg_version: '18' });
+
+result.config.shared_buffers;                    // '3622MB'
+result.advisories.filter((a) => a.severity === 'warning');
+renderConf(result, { version: '0.10.0', host: 'db-1' });
+```
+
+`createConfigurator()` reads the bundled rule data from disk, which needs Node.
+A bundler or a browser imports the three JSON payloads itself and passes them
+instead — nothing else in the module touches the filesystem:
+
+```js
+import { configuratorFromData } from 'pg-configurator-web';
+import rules from 'pg-configurator-web/data/rules.json' with { type: 'json' };
+import pgSettings from 'pg-configurator-web/data/pg_settings.json' with { type: 'json' };
+
+const pgc = configuratorFromData({ rules: rules.payload, pgSettings: pgSettings.payload });
+```
+
+`web/index.mjs` is the interface and is kept stable; the modules under
+`web/src/` mirror the Python source file by file so the two can be reviewed
+side by side, and are not part of it. The package also installs a
+`pg-configurator-js` command line that mirrors the Python CLI.
+
+`--output-format=json` from the JavaScript build emits
+`schema_version: pg_configurator/preview-v1`: the same document as the
+`pg_configurator/v2` artifact, minus `artifact_hash`. The canonical hash is
+defined over the byte encoding of Python's `json.dumps`, down to how a float
+that happens to be integral is spelled, and this build does not reproduce those
+bytes. Emitting the same content under a name that promises a hash it does not
+carry is what a consumer cannot defend against, so it uses a name of its own.
+
+The self-contained offline page is a separate artifact, built by
+`python3 web/build.py` and published from CI; it is not part of the npm package.
 
 ## Orchestrator integration
 
@@ -860,7 +949,7 @@ python -m twine check dist/*
 ```
 
 Tagged releases are built and published through PyPI Trusted Publishing. A tag
-must match the package version, for example `v0.9.2`.
+must match the package version, for example `v0.10.0`.
 
 ## License and provenance
 

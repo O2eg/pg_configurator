@@ -1,0 +1,841 @@
+{
+  "generator": "tools/export_web_data.py",
+  "package_version": "0.10.0",
+  "payload": {
+    "counts": {
+      "calculation": 35,
+      "form_fields": 32,
+      "options": 46,
+      "orchestration": 10
+    },
+    "options": [
+      {
+        "action": "store_true",
+        "choices": null,
+        "default": false,
+        "default_source": "static",
+        "dest": "version",
+        "form_field": false,
+        "help": "Show the version number and exit",
+        "hidden": false,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--version"
+        ],
+        "primary_option": "--version",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store_true",
+        "choices": null,
+        "default": false,
+        "default_source": "static",
+        "dest": "capabilities",
+        "form_field": false,
+        "help": null,
+        "hidden": true,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--capabilities",
+          "--component-capabilities"
+        ],
+        "primary_option": "--capabilities",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store_true",
+        "choices": null,
+        "default": false,
+        "default_source": "static",
+        "dest": "machine",
+        "form_field": false,
+        "help": null,
+        "hidden": true,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--machine"
+        ],
+        "primary_option": "--machine",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "static",
+        "dest": "request_id",
+        "form_field": false,
+        "help": null,
+        "hidden": true,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--request-id"
+        ],
+        "primary_option": "--request-id",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "static",
+        "dest": "input_json",
+        "form_field": false,
+        "help": null,
+        "hidden": true,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--input-json"
+        ],
+        "primary_option": "--input-json",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store_true",
+        "choices": null,
+        "default": false,
+        "default_source": "static",
+        "dest": "validate_input",
+        "form_field": false,
+        "help": null,
+        "hidden": true,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--validate-input"
+        ],
+        "primary_option": "--validate-input",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store_true",
+        "choices": null,
+        "default": false,
+        "default_source": "static",
+        "dest": "debug",
+        "form_field": false,
+        "help": "Enable debug mode, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--debug"
+        ],
+        "primary_option": "--debug",
+        "role": "orchestration",
+        "type": null
+      },
+      {
+        "action": "store",
+        "choices": [
+          "json",
+          "patroni-json",
+          "conf"
+        ],
+        "default": "conf",
+        "default_source": "static",
+        "dest": "output_format",
+        "form_field": false,
+        "help": "Specify output format, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--output-format"
+        ],
+        "primary_option": "--output-format",
+        "role": "output",
+        "type": "OutputFormat"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "",
+        "default_source": "static",
+        "dest": "output_file_name",
+        "form_field": false,
+        "help": "Save to an exact output file (--output-file-name is a compatibility alias)",
+        "hidden": false,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--out",
+          "--output-file-name"
+        ],
+        "primary_option": "--out",
+        "role": "orchestration",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "host",
+        "dest": "db_cpu",
+        "form_field": true,
+        "help": "Available CPU cores; decimal cores and millicores such as 500m are accepted",
+        "hidden": false,
+        "make_conf_parameter": "cpu_cores",
+        "option_strings": [
+          "--db-cpu"
+        ],
+        "primary_option": "--db-cpu",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "host",
+        "dest": "db_ram",
+        "form_field": true,
+        "help": "Physical RAM with an IEC suffix such as Mi, Gi, or Ti",
+        "hidden": false,
+        "make_conf_parameter": "ram_value",
+        "option_strings": [
+          "--db-ram"
+        ],
+        "primary_option": "--db-ram",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "static",
+        "dest": "db_size",
+        "form_field": true,
+        "help": "Optional logical database size with an IEC suffix; selects a bounded default_statistics_target tier",
+        "hidden": false,
+        "make_conf_parameter": "db_size",
+        "option_strings": [
+          "--db-size"
+        ],
+        "primary_option": "--db-size",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": [
+          "SATA",
+          "SAS",
+          "SSD",
+          "NVME",
+          "NETWORK"
+        ],
+        "default": "SSD",
+        "default_source": "static",
+        "dest": "db_disk_type",
+        "form_field": true,
+        "help": "Disks type, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "disk_type",
+        "option_strings": [
+          "--db-disk-type"
+        ],
+        "primary_option": "--db-disk-type",
+        "role": "calculation",
+        "type": "DiskType"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "static",
+        "dest": "disk_score",
+        "form_field": true,
+        "help": "Measured composite storage score from 0 to 100",
+        "hidden": false,
+        "make_conf_parameter": "disk_score",
+        "option_strings": [
+          "--disk-score"
+        ],
+        "primary_option": "--disk-score",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": [
+          "statistic",
+          "mixed",
+          "oltp",
+          "financial"
+        ],
+        "default": "mixed",
+        "default_source": "static",
+        "dest": "db_duty",
+        "form_field": true,
+        "help": "Database duty, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "duty_db",
+        "option_strings": [
+          "--db-duty"
+        ],
+        "primary_option": "--db-duty",
+        "role": "calculation",
+        "type": "DutyDB"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "static",
+        "dest": "replication_enabled",
+        "form_exclusion_reason": "compatibility alias; the form exposes replication_mode",
+        "form_field": false,
+        "help": "Compatibility switch: true maps to physical and false to none; when both replication options are explicit they must agree",
+        "hidden": false,
+        "make_conf_parameter": "replication_enabled",
+        "option_strings": [
+          "--replication-enabled"
+        ],
+        "primary_option": "--replication-enabled",
+        "role": "calculation",
+        "type": "parse_bool"
+      },
+      {
+        "action": "store",
+        "choices": [
+          "none",
+          "physical",
+          "logical"
+        ],
+        "default": null,
+        "default_source": "static",
+        "dest": "replication_mode",
+        "form_field": true,
+        "help": "Required replication capability: none, physical, or logical",
+        "hidden": false,
+        "make_conf_parameter": "replication_mode",
+        "option_strings": [
+          "--replication-mode"
+        ],
+        "primary_option": "--replication-mode",
+        "role": "calculation",
+        "type": "ReplicationMode"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": true,
+        "default_source": "static",
+        "dest": "pitr_enabled",
+        "form_field": true,
+        "help": "Keep wal_level PITR-compatible; backup and archive transport remain a pg_stand responsibility, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "pitr_enabled",
+        "option_strings": [
+          "--pitr-enabled"
+        ],
+        "primary_option": "--pitr-enabled",
+        "role": "calculation",
+        "type": "parse_bool"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "",
+        "default_source": "static",
+        "dest": "synchronous_standby_names",
+        "form_field": true,
+        "help": "Value for synchronous_standby_names; enables truthful remote_apply",
+        "hidden": false,
+        "make_conf_parameter": "synchronous_standby_names",
+        "option_strings": [
+          "--synchronous-standby-names"
+        ],
+        "primary_option": "--synchronous-standby-names",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 1,
+        "default_source": "static",
+        "dest": "replica_count",
+        "form_field": true,
+        "help": "Expected physical replicas, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "replica_count",
+        "option_strings": [
+          "--replica-count"
+        ],
+        "primary_option": "--replica-count",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 0,
+        "default_source": "static",
+        "dest": "logical_subscription_count",
+        "form_field": true,
+        "help": "Expected logical subscriptions on this node, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "logical_subscription_count",
+        "option_strings": [
+          "--logical-subscription-count"
+        ],
+        "primary_option": "--logical-subscription-count",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": [
+          "9.6",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18"
+        ],
+        "default": "18",
+        "default_source": "static",
+        "dest": "pg_version",
+        "form_field": true,
+        "help": "PostgreSQL version, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "pg_version",
+        "option_strings": [
+          "--pg-version"
+        ],
+        "primary_option": "--pg-version",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 10,
+        "default_source": "static",
+        "dest": "reserved_ram_percent",
+        "form_field": true,
+        "help": "Reserved RAM memory part, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "reserved_ram_percent",
+        "option_strings": [
+          "--reserved-ram-percent"
+        ],
+        "primary_option": "--reserved-ram-percent",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "256Mi",
+        "default_source": "static",
+        "dest": "reserved_system_ram",
+        "form_field": true,
+        "help": "Reserved system RAM memory, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "reserved_system_ram",
+        "option_strings": [
+          "--reserved-system-ram"
+        ],
+        "primary_option": "--reserved-system-ram",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 0.25,
+        "default_source": "static",
+        "dest": "shared_buffers_part",
+        "form_field": true,
+        "help": "Shared buffers part, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "shared_buffers_part",
+        "option_strings": [
+          "--shared-buffers-part"
+        ],
+        "primary_option": "--shared-buffers-part",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 0.2,
+        "default_source": "static",
+        "dest": "client_mem_part",
+        "form_field": true,
+        "help": "RAM fraction for concurrently active query memory, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "client_mem_part",
+        "option_strings": [
+          "--client-mem-part"
+        ],
+        "primary_option": "--client-mem-part",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 0.1,
+        "default_source": "static",
+        "dest": "maintenance_mem_part",
+        "form_field": true,
+        "help": "RAM fraction shared by maintenance and autovacuum, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "maintenance_mem_part",
+        "option_strings": [
+          "--maintenance-mem-part"
+        ],
+        "primary_option": "--maintenance-mem-part",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 0.5,
+        "default_source": "static",
+        "dest": "autovacuum_workers_mem_part",
+        "form_field": true,
+        "help": "Memory part of maintenance-mem, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "autovacuum_workers_mem_part",
+        "option_strings": [
+          "--autovacuum-workers-mem-part"
+        ],
+        "primary_option": "--autovacuum-workers-mem-part",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 0.5,
+        "default_source": "static",
+        "dest": "maintenance_conns_mem_part",
+        "form_field": true,
+        "help": "Memory part of maintenance-mem, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "maintenance_conns_mem_part",
+        "option_strings": [
+          "--maintenance-conns-mem-part"
+        ],
+        "primary_option": "--maintenance-conns-mem-part",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 4.0,
+        "default_source": "static",
+        "dest": "work_mem_concurrency_factor",
+        "form_field": true,
+        "help": "Combined work_mem amplification for concurrent operators, parallel workers, and hash operations, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "work_mem_concurrency_factor",
+        "option_strings": [
+          "--work-mem-concurrency-factor"
+        ],
+        "primary_option": "--work-mem-concurrency-factor",
+        "role": "calculation",
+        "type": "float"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "4Mi",
+        "default_source": "static",
+        "dest": "peak_wal_rate",
+        "form_field": true,
+        "help": "Expected peak WAL generation per second, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "peak_wal_rate",
+        "option_strings": [
+          "--peak-wal-rate"
+        ],
+        "primary_option": "--peak-wal-rate",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 900,
+        "default_source": "static",
+        "dest": "replica_outage_tolerance",
+        "form_field": true,
+        "help": "WAL retention target in seconds, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "replica_outage_tolerance",
+        "option_strings": [
+          "--replica-outage-tolerance"
+        ],
+        "primary_option": "--replica-outage-tolerance",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "32Gi",
+        "default_source": "static",
+        "dest": "wal_disk_budget",
+        "form_field": true,
+        "help": "Total disk budget for pg_wal and retained WAL, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "wal_disk_budget",
+        "option_strings": [
+          "--wal-disk-budget"
+        ],
+        "primary_option": "--wal-disk-budget",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "16Mi",
+        "default_source": "static",
+        "dest": "wal_segment_size",
+        "form_field": true,
+        "help": "Actual cluster WAL segment size used for WAL sizing, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "wal_segment_size",
+        "option_strings": [
+          "--wal-segment-size"
+        ],
+        "primary_option": "--wal-segment-size",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 20,
+        "default_source": "static",
+        "dest": "min_conns",
+        "form_field": true,
+        "help": "Min client connection, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "min_conns",
+        "option_strings": [
+          "--min-conns"
+        ],
+        "primary_option": "--min-conns",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 500,
+        "default_source": "static",
+        "dest": "max_conns",
+        "form_field": true,
+        "help": "Max client connection, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "max_conns",
+        "option_strings": [
+          "--max-conns"
+        ],
+        "primary_option": "--max-conns",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 3,
+        "default_source": "static",
+        "dest": "min_autovac_workers",
+        "form_field": true,
+        "help": "Min autovacuum workers, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "min_autovac_workers",
+        "option_strings": [
+          "--min-autovac-workers"
+        ],
+        "primary_option": "--min-autovac-workers",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 20,
+        "default_source": "static",
+        "dest": "max_autovac_workers",
+        "form_field": true,
+        "help": "Max autovacuum workers, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "max_autovac_workers",
+        "option_strings": [
+          "--max-autovac-workers"
+        ],
+        "primary_option": "--max-autovac-workers",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 4,
+        "default_source": "static",
+        "dest": "min_maint_conns",
+        "form_field": true,
+        "help": "Min maintenance connections, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "min_maint_conns",
+        "option_strings": [
+          "--min-maint-conns"
+        ],
+        "primary_option": "--min-maint-conns",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": 16,
+        "default_source": "static",
+        "dest": "max_maint_conns",
+        "form_field": true,
+        "help": "Max maintenance connections, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "max_maint_conns",
+        "option_strings": [
+          "--max-maint-conns"
+        ],
+        "primary_option": "--max-maint-conns",
+        "role": "calculation",
+        "type": "int"
+      },
+      {
+        "action": "boolean_optional",
+        "choices": null,
+        "default": true,
+        "default_source": "static",
+        "dest": "common_conf",
+        "form_exclusion_reason": "disabling it is rejected by make_conf",
+        "form_field": false,
+        "help": "Keep the mandatory version-aware logging, statistics, and observability configuration enabled; --no-common-conf is rejected",
+        "hidden": false,
+        "make_conf_parameter": "common_conf",
+        "option_strings": [
+          "--common-conf",
+          "--no-common-conf"
+        ],
+        "primary_option": "--common-conf",
+        "role": "calculation",
+        "type": null
+      },
+      {
+        "action": "store",
+        "choices": [
+          "WINDOWS",
+          "LINUX"
+        ],
+        "default": "LINUX",
+        "default_source": "static",
+        "dest": "platform",
+        "form_field": true,
+        "help": "Target OS; controls availability of TCP timeout features, (default: %(default)s)",
+        "hidden": false,
+        "make_conf_parameter": "platform",
+        "option_strings": [
+          "--platform"
+        ],
+        "primary_option": "--platform",
+        "role": "calculation",
+        "type": "Platform"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "",
+        "default_source": "static",
+        "dest": "settings_history",
+        "form_field": false,
+        "help": "Show pg_settings differences between two versions, for example --settings-history=9.6,15",
+        "hidden": false,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--settings-history"
+        ],
+        "primary_option": "--settings-history",
+        "role": "orchestration",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "",
+        "default_source": "static",
+        "dest": "conf_profiles",
+        "form_field": true,
+        "help": "Select one or more comma-separated configuration profiles",
+        "hidden": false,
+        "make_conf_parameter": "conf_profiles",
+        "option_strings": [
+          "--conf-profiles"
+        ],
+        "primary_option": "--conf-profiles",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": null,
+        "default_source": "static",
+        "dest": "available_extensions",
+        "form_exclusion_reason": "a caller assertion about the target that changes no generated setting: it swaps one warning for another and flips artifact metadata",
+        "form_field": false,
+        "help": "Caller-declared extension inventory for the selected target major; this command does not perform a live target preflight",
+        "hidden": false,
+        "make_conf_parameter": "available_extensions",
+        "option_strings": [
+          "--available-extensions"
+        ],
+        "primary_option": "--available-extensions",
+        "role": "calculation",
+        "type": "str"
+      },
+      {
+        "action": "store",
+        "choices": null,
+        "default": "",
+        "default_source": "static",
+        "dest": "specific_setting_history",
+        "form_field": false,
+        "help": "Show one setting across versions, for example --specific-setting-history=max_parallel_maintenance_workers",
+        "hidden": false,
+        "make_conf_parameter": null,
+        "option_strings": [
+          "--specific-setting-history"
+        ],
+        "primary_option": "--specific-setting-history",
+        "role": "orchestration",
+        "type": "str"
+      }
+    ],
+    "parser": {
+      "allow_abbrev": true,
+      "prefix_chars": "-"
+    }
+  },
+  "payload_digest": "sha256:73bc574ddea0059dc10956197a432a5bef2104660d33bb7a45b725c295d86f21",
+  "schema_version": "pg_configurator/web-data-v1"
+}

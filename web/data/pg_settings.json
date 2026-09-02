@@ -1,0 +1,5779 @@
+{
+  "generator": "tools/export_web_data.py",
+  "package_version": "0.10.0",
+  "payload": {
+    "base": {
+      "DateStyle": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "IntervalStyle": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{postgres,postgres_verbose,sql_standard,iso_8601}"
+      ],
+      "TimeZone": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "allow_alter_system": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "allow_in_place_tablespaces": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "allow_system_table_mods": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "application_name": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "archive_cleanup_command": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "archive_command": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "archive_library": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "archive_mode": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{always,on,off}"
+      ],
+      "archive_timeout": [
+        "integer",
+        "s",
+        "sighup",
+        "0",
+        "1073741823",
+        ""
+      ],
+      "array_nulls": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "authentication_timeout": [
+        "integer",
+        "s",
+        "sighup",
+        "1",
+        "600",
+        ""
+      ],
+      "auto_explain.log_analyze": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_buffers": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_format": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{text,xml,json,yaml}"
+      ],
+      "auto_explain.log_level": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{debug5,debug4,debug3,debug2,debug1,info,notice,warning,log}"
+      ],
+      "auto_explain.log_min_duration": [
+        "integer",
+        "ms",
+        "superuser",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "auto_explain.log_nested_statements": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_parameter_max_length": [
+        "integer",
+        "B",
+        "superuser",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "auto_explain.log_settings": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_timing": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_triggers": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_verbose": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.log_wal": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "auto_explain.sample_rate": [
+        "real",
+        "",
+        "superuser",
+        "0",
+        "1",
+        ""
+      ],
+      "autovacuum": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "autovacuum_analyze_scale_factor": [
+        "real",
+        "",
+        "sighup",
+        "0",
+        "100",
+        ""
+      ],
+      "autovacuum_analyze_threshold": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "autovacuum_freeze_max_age": [
+        "integer",
+        "",
+        "postmaster",
+        "100000",
+        "2000000000",
+        ""
+      ],
+      "autovacuum_max_workers": [
+        "integer",
+        "",
+        "sighup",
+        "1",
+        "262143",
+        ""
+      ],
+      "autovacuum_multixact_freeze_max_age": [
+        "integer",
+        "",
+        "postmaster",
+        "10000",
+        "2000000000",
+        ""
+      ],
+      "autovacuum_naptime": [
+        "integer",
+        "s",
+        "sighup",
+        "1",
+        "2147483",
+        ""
+      ],
+      "autovacuum_vacuum_cost_delay": [
+        "real",
+        "ms",
+        "sighup",
+        "-1",
+        "100",
+        ""
+      ],
+      "autovacuum_vacuum_cost_limit": [
+        "integer",
+        "",
+        "sighup",
+        "-1",
+        "10000",
+        ""
+      ],
+      "autovacuum_vacuum_insert_scale_factor": [
+        "real",
+        "",
+        "sighup",
+        "0",
+        "100",
+        ""
+      ],
+      "autovacuum_vacuum_insert_threshold": [
+        "integer",
+        "",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "autovacuum_vacuum_max_threshold": [
+        "integer",
+        "",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "autovacuum_vacuum_scale_factor": [
+        "real",
+        "",
+        "sighup",
+        "0",
+        "100",
+        ""
+      ],
+      "autovacuum_vacuum_threshold": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "autovacuum_work_mem": [
+        "integer",
+        "kB",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "autovacuum_worker_slots": [
+        "integer",
+        "",
+        "postmaster",
+        "1",
+        "262143",
+        ""
+      ],
+      "backend_flush_after": [
+        "integer",
+        "8kB",
+        "user",
+        "0",
+        "256",
+        ""
+      ],
+      "backslash_quote": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{safe_encoding,on,off}"
+      ],
+      "backtrace_functions": [
+        "string",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "bgwriter_delay": [
+        "integer",
+        "ms",
+        "sighup",
+        "10",
+        "10000",
+        ""
+      ],
+      "bgwriter_flush_after": [
+        "integer",
+        "8kB",
+        "sighup",
+        "0",
+        "256",
+        ""
+      ],
+      "bgwriter_lru_maxpages": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "1073741823",
+        ""
+      ],
+      "bgwriter_lru_multiplier": [
+        "real",
+        "",
+        "sighup",
+        "0",
+        "10",
+        ""
+      ],
+      "block_size": [
+        "integer",
+        "",
+        "internal",
+        "8192",
+        "8192",
+        ""
+      ],
+      "bonjour": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "bonjour_name": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "bytea_output": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{escape,hex}"
+      ],
+      "check_function_bodies": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "checkpoint_completion_target": [
+        "real",
+        "",
+        "sighup",
+        "0",
+        "1",
+        ""
+      ],
+      "checkpoint_flush_after": [
+        "integer",
+        "8kB",
+        "sighup",
+        "0",
+        "256",
+        ""
+      ],
+      "checkpoint_timeout": [
+        "integer",
+        "s",
+        "sighup",
+        "30",
+        "86400",
+        ""
+      ],
+      "checkpoint_warning": [
+        "integer",
+        "s",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "client_connection_check_interval": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "client_encoding": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "client_min_messages": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+      ],
+      "cluster_name": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "commit_delay": [
+        "integer",
+        "",
+        "superuser",
+        "0",
+        "100000",
+        ""
+      ],
+      "commit_siblings": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1000",
+        ""
+      ],
+      "commit_timestamp_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "0",
+        "131072",
+        ""
+      ],
+      "compute_query_id": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{auto,regress,on,off}"
+      ],
+      "config_file": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "constraint_exclusion": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{partition,on,off}"
+      ],
+      "cpu_index_tuple_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "cpu_operator_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "cpu_tuple_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "createrole_self_grant": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "cursor_tuple_fraction": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1",
+        ""
+      ],
+      "data_checksums": [
+        "bool",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "data_directory": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "data_directory_mode": [
+        "integer",
+        "",
+        "internal",
+        "0",
+        "511",
+        ""
+      ],
+      "data_sync_retry": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "deadlock_timeout": [
+        "integer",
+        "ms",
+        "superuser",
+        "1",
+        "2147483647",
+        ""
+      ],
+      "debug_assertions": [
+        "bool",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "debug_discard_caches": [
+        "integer",
+        "",
+        "superuser",
+        "0",
+        "0",
+        ""
+      ],
+      "debug_io_direct": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "debug_logical_replication_streaming": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{buffered,immediate}"
+      ],
+      "debug_parallel_query": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{off,on,regress}"
+      ],
+      "debug_pretty_print": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "debug_print_parse": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "debug_print_plan": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "debug_print_rewritten": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "default_statistics_target": [
+        "integer",
+        "",
+        "user",
+        "1",
+        "10000",
+        ""
+      ],
+      "default_table_access_method": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "default_tablespace": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "default_text_search_config": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "default_toast_compression": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{pglz,lz4}"
+      ],
+      "default_transaction_deferrable": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "default_transaction_isolation": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{serializable,\"repeatable read\",\"read committed\",\"read uncommitted\"}"
+      ],
+      "default_transaction_read_only": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "dynamic_library_path": [
+        "string",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "dynamic_shared_memory_type": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{posix,sysv,mmap}"
+      ],
+      "effective_cache_size": [
+        "integer",
+        "8kB",
+        "user",
+        "1",
+        "2147483647",
+        ""
+      ],
+      "effective_io_concurrency": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1000",
+        ""
+      ],
+      "enable_async_append": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_bitmapscan": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_distinct_reordering": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_gathermerge": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_group_by_reordering": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_hashagg": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_hashjoin": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_incremental_sort": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_indexonlyscan": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_indexscan": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_material": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_memoize": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_mergejoin": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_nestloop": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_parallel_append": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_parallel_hash": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_partition_pruning": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_partitionwise_aggregate": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_partitionwise_join": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_presorted_aggregate": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_self_join_elimination": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_seqscan": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_sort": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "enable_tidscan": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "escape_string_warning": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "event_source": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "event_triggers": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "exit_on_error": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "extension_control_path": [
+        "string",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "external_pid_file": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "extra_float_digits": [
+        "integer",
+        "",
+        "user",
+        "-15",
+        "3",
+        ""
+      ],
+      "file_copy_method": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{copy,clone}"
+      ],
+      "file_extend_method": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{posix_fallocate,write_zeros}"
+      ],
+      "from_collapse_limit": [
+        "integer",
+        "",
+        "user",
+        "1",
+        "2147483647",
+        ""
+      ],
+      "fsync": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "full_page_writes": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "geqo": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "geqo_effort": [
+        "integer",
+        "",
+        "user",
+        "1",
+        "10",
+        ""
+      ],
+      "geqo_generations": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "geqo_pool_size": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "geqo_seed": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1",
+        ""
+      ],
+      "geqo_selection_bias": [
+        "real",
+        "",
+        "user",
+        "1.5",
+        "2",
+        ""
+      ],
+      "geqo_threshold": [
+        "integer",
+        "",
+        "user",
+        "2",
+        "2147483647",
+        ""
+      ],
+      "gin_fuzzy_search_limit": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "gin_pending_list_limit": [
+        "integer",
+        "kB",
+        "user",
+        "64",
+        "2147483647",
+        ""
+      ],
+      "gss_accept_delegation": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "hash_mem_multiplier": [
+        "real",
+        "",
+        "user",
+        "1",
+        "1000",
+        ""
+      ],
+      "hba_file": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "hot_standby": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "hot_standby_feedback": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "huge_page_size": [
+        "integer",
+        "kB",
+        "postmaster",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "huge_pages": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{off,on,try}"
+      ],
+      "huge_pages_status": [
+        "enum",
+        "",
+        "internal",
+        "",
+        "",
+        "{off,on,unknown}"
+      ],
+      "icu_validation_level": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{disabled,debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+      ],
+      "ident_file": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "idle_in_transaction_session_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "idle_replication_slot_timeout": [
+        "integer",
+        "s",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "idle_session_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "ignore_checksum_failure": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "ignore_invalid_pages": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "ignore_system_indexes": [
+        "bool",
+        "",
+        "backend",
+        "",
+        "",
+        ""
+      ],
+      "in_hot_standby": [
+        "bool",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "integer_datetimes": [
+        "bool",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "io_combine_limit": [
+        "integer",
+        "8kB",
+        "user",
+        "1",
+        "128",
+        ""
+      ],
+      "io_max_combine_limit": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "1",
+        "128",
+        ""
+      ],
+      "io_max_concurrency": [
+        "integer",
+        "",
+        "postmaster",
+        "-1",
+        "1024",
+        ""
+      ],
+      "io_method": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{sync,worker,io_uring}"
+      ],
+      "io_workers": [
+        "integer",
+        "",
+        "sighup",
+        "1",
+        "32",
+        ""
+      ],
+      "jit": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "jit_above_cost": [
+        "real",
+        "",
+        "user",
+        "-1",
+        "1.79769e+308",
+        ""
+      ],
+      "jit_debugging_support": [
+        "bool",
+        "",
+        "superuser-backend",
+        "",
+        "",
+        ""
+      ],
+      "jit_dump_bitcode": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "jit_expressions": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "jit_inline_above_cost": [
+        "real",
+        "",
+        "user",
+        "-1",
+        "1.79769e+308",
+        ""
+      ],
+      "jit_optimize_above_cost": [
+        "real",
+        "",
+        "user",
+        "-1",
+        "1.79769e+308",
+        ""
+      ],
+      "jit_profiling_support": [
+        "bool",
+        "",
+        "superuser-backend",
+        "",
+        "",
+        ""
+      ],
+      "jit_provider": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "jit_tuple_deforming": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "join_collapse_limit": [
+        "integer",
+        "",
+        "user",
+        "1",
+        "2147483647",
+        ""
+      ],
+      "krb_caseins_users": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "krb_server_keyfile": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "lc_messages": [
+        "string",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "lc_monetary": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "lc_numeric": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "lc_time": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "listen_addresses": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "lo_compat_privileges": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "local_preload_libraries": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "lock_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "log_autovacuum_min_duration": [
+        "integer",
+        "ms",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "log_checkpoints": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_connections": [
+        "string",
+        "",
+        "superuser-backend",
+        "",
+        "",
+        ""
+      ],
+      "log_destination": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_directory": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_disconnections": [
+        "bool",
+        "",
+        "superuser-backend",
+        "",
+        "",
+        ""
+      ],
+      "log_duration": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_error_verbosity": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{terse,default,verbose}"
+      ],
+      "log_executor_stats": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_file_mode": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "511",
+        ""
+      ],
+      "log_filename": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_hostname": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_line_prefix": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_lock_failures": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_lock_waits": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_min_duration_sample": [
+        "integer",
+        "ms",
+        "superuser",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "log_min_duration_statement": [
+        "integer",
+        "ms",
+        "superuser",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "log_min_error_statement": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{debug5,debug4,debug3,debug2,debug1,info,notice,warning,error,log,fatal,panic}"
+      ],
+      "log_min_messages": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{debug5,debug4,debug3,debug2,debug1,info,notice,warning,error,log,fatal,panic}"
+      ],
+      "log_parameter_max_length": [
+        "integer",
+        "B",
+        "superuser",
+        "-1",
+        "1073741823",
+        ""
+      ],
+      "log_parameter_max_length_on_error": [
+        "integer",
+        "B",
+        "user",
+        "-1",
+        "1073741823",
+        ""
+      ],
+      "log_parser_stats": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_planner_stats": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_recovery_conflict_waits": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_replication_commands": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_rotation_age": [
+        "integer",
+        "min",
+        "sighup",
+        "0",
+        "35791394",
+        ""
+      ],
+      "log_rotation_size": [
+        "integer",
+        "kB",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "log_startup_progress_interval": [
+        "integer",
+        "ms",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "log_statement": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{none,ddl,mod,all}"
+      ],
+      "log_statement_sample_rate": [
+        "real",
+        "",
+        "superuser",
+        "0",
+        "1",
+        ""
+      ],
+      "log_statement_stats": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "log_temp_files": [
+        "integer",
+        "kB",
+        "superuser",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "log_timezone": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "log_transaction_sample_rate": [
+        "real",
+        "",
+        "superuser",
+        "0",
+        "1",
+        ""
+      ],
+      "log_truncate_on_rotation": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "logging_collector": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "logical_decoding_work_mem": [
+        "integer",
+        "kB",
+        "user",
+        "64",
+        "2147483647",
+        ""
+      ],
+      "maintenance_io_concurrency": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1000",
+        ""
+      ],
+      "maintenance_work_mem": [
+        "integer",
+        "kB",
+        "user",
+        "64",
+        "2147483647",
+        ""
+      ],
+      "max_active_replication_origins": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "max_connections": [
+        "integer",
+        "",
+        "postmaster",
+        "1",
+        "262143",
+        ""
+      ],
+      "max_files_per_process": [
+        "integer",
+        "",
+        "postmaster",
+        "64",
+        "2147483647",
+        ""
+      ],
+      "max_function_args": [
+        "integer",
+        "",
+        "internal",
+        "100",
+        "100",
+        ""
+      ],
+      "max_identifier_length": [
+        "integer",
+        "",
+        "internal",
+        "63",
+        "63",
+        ""
+      ],
+      "max_index_keys": [
+        "integer",
+        "",
+        "internal",
+        "32",
+        "32",
+        ""
+      ],
+      "max_locks_per_transaction": [
+        "integer",
+        "",
+        "postmaster",
+        "10",
+        "2147483647",
+        ""
+      ],
+      "max_logical_replication_workers": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "max_notify_queue_pages": [
+        "integer",
+        "",
+        "postmaster",
+        "64",
+        "2147483647",
+        ""
+      ],
+      "max_parallel_apply_workers_per_subscription": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "1024",
+        ""
+      ],
+      "max_parallel_maintenance_workers": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1024",
+        ""
+      ],
+      "max_parallel_workers": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1024",
+        ""
+      ],
+      "max_parallel_workers_per_gather": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1024",
+        ""
+      ],
+      "max_pred_locks_per_page": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "max_pred_locks_per_relation": [
+        "integer",
+        "",
+        "sighup",
+        "-2147483648",
+        "2147483647",
+        ""
+      ],
+      "max_pred_locks_per_transaction": [
+        "integer",
+        "",
+        "postmaster",
+        "10",
+        "2147483647",
+        ""
+      ],
+      "max_prepared_transactions": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "max_replication_slots": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "max_slot_wal_keep_size": [
+        "integer",
+        "MB",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "max_stack_depth": [
+        "integer",
+        "kB",
+        "superuser",
+        "100",
+        "2147483647",
+        ""
+      ],
+      "max_standby_archive_delay": [
+        "integer",
+        "ms",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "max_standby_streaming_delay": [
+        "integer",
+        "ms",
+        "sighup",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "max_sync_workers_per_subscription": [
+        "integer",
+        "",
+        "sighup",
+        "0",
+        "262143",
+        ""
+      ],
+      "max_wal_senders": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "max_wal_size": [
+        "integer",
+        "MB",
+        "sighup",
+        "2",
+        "2147483647",
+        ""
+      ],
+      "max_worker_processes": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "md5_password_warnings": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "min_dynamic_shared_memory": [
+        "integer",
+        "MB",
+        "postmaster",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "min_parallel_index_scan_size": [
+        "integer",
+        "8kB",
+        "user",
+        "0",
+        "715827882",
+        ""
+      ],
+      "min_parallel_table_scan_size": [
+        "integer",
+        "8kB",
+        "user",
+        "0",
+        "715827882",
+        ""
+      ],
+      "min_wal_size": [
+        "integer",
+        "MB",
+        "sighup",
+        "2",
+        "2147483647",
+        ""
+      ],
+      "multixact_member_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "16",
+        "131072",
+        ""
+      ],
+      "multixact_offset_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "16",
+        "131072",
+        ""
+      ],
+      "notify_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "16",
+        "131072",
+        ""
+      ],
+      "num_os_semaphores": [
+        "integer",
+        "",
+        "internal",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "oauth_validator_libraries": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "parallel_leader_participation": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "parallel_setup_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "parallel_tuple_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "password_encryption": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{md5,scram-sha-256}"
+      ],
+      "pg_stat_statements.max": [
+        "integer",
+        "",
+        "postmaster",
+        "100",
+        "1073741823",
+        ""
+      ],
+      "pg_stat_statements.save": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "pg_stat_statements.track": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{none,top,all}"
+      ],
+      "pg_stat_statements.track_planning": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "pg_stat_statements.track_utility": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "plan_cache_mode": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{auto,force_generic_plan,force_custom_plan}"
+      ],
+      "port": [
+        "integer",
+        "",
+        "postmaster",
+        "1",
+        "65535",
+        ""
+      ],
+      "post_auth_delay": [
+        "integer",
+        "s",
+        "backend",
+        "0",
+        "2147",
+        ""
+      ],
+      "pre_auth_delay": [
+        "integer",
+        "s",
+        "sighup",
+        "0",
+        "60",
+        ""
+      ],
+      "primary_conninfo": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "primary_slot_name": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "quote_all_identifiers": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "random_page_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "recovery_end_command": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "recovery_init_sync_method": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{fsync,syncfs}"
+      ],
+      "recovery_min_apply_delay": [
+        "integer",
+        "ms",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "recovery_prefetch": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{off,on,try}"
+      ],
+      "recovery_target": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recovery_target_action": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{pause,promote,shutdown}"
+      ],
+      "recovery_target_inclusive": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recovery_target_lsn": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recovery_target_name": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recovery_target_time": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recovery_target_timeline": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recovery_target_xid": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "recursive_worktable_factor": [
+        "real",
+        "",
+        "user",
+        "0.001",
+        "1e+06",
+        ""
+      ],
+      "remove_temp_files_after_crash": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "reserved_connections": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "restart_after_crash": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "restore_command": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "restrict_nonsystem_relation_kind": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "row_security": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "scram_iterations": [
+        "integer",
+        "",
+        "user",
+        "1",
+        "2147483647",
+        ""
+      ],
+      "search_path": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "segment_size": [
+        "integer",
+        "8kB",
+        "internal",
+        "131072",
+        "131072",
+        ""
+      ],
+      "send_abort_for_crash": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "send_abort_for_kill": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "seq_page_cost": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1.79769e+308",
+        ""
+      ],
+      "serializable_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "16",
+        "131072",
+        ""
+      ],
+      "server_encoding": [
+        "string",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "server_version": [
+        "string",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "server_version_num": [
+        "integer",
+        "",
+        "internal",
+        "180004",
+        "180004",
+        ""
+      ],
+      "session_preload_libraries": [
+        "string",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "session_replication_role": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{origin,replica,local}"
+      ],
+      "shared_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "16",
+        "1073741823",
+        ""
+      ],
+      "shared_memory_size": [
+        "integer",
+        "MB",
+        "internal",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "shared_memory_size_in_huge_pages": [
+        "integer",
+        "",
+        "internal",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "shared_memory_type": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{sysv,mmap}"
+      ],
+      "shared_preload_libraries": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "ssl": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_ca_file": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_cert_file": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_ciphers": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_crl_dir": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_crl_file": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_dh_params_file": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_groups": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_key_file": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_library": [
+        "string",
+        "",
+        "internal",
+        "",
+        "",
+        ""
+      ],
+      "ssl_max_protocol_version": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{\"\",TLSv1,TLSv1.1,TLSv1.2,TLSv1.3}"
+      ],
+      "ssl_min_protocol_version": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{TLSv1,TLSv1.1,TLSv1.2,TLSv1.3}"
+      ],
+      "ssl_passphrase_command": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_passphrase_command_supports_reload": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_prefer_server_ciphers": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "ssl_tls13_ciphers": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "standard_conforming_strings": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "statement_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "stats_fetch_consistency": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{none,cache,snapshot}"
+      ],
+      "subtransaction_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "0",
+        "131072",
+        ""
+      ],
+      "summarize_wal": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "superuser_reserved_connections": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "262143",
+        ""
+      ],
+      "sync_replication_slots": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "synchronize_seqscans": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "synchronized_standby_slots": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "synchronous_commit": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{local,remote_write,remote_apply,on,off}"
+      ],
+      "synchronous_standby_names": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "syslog_facility": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{local0,local1,local2,local3,local4,local5,local6,local7}"
+      ],
+      "syslog_ident": [
+        "string",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "syslog_sequence_numbers": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "syslog_split_messages": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "tcp_keepalives_count": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "tcp_keepalives_idle": [
+        "integer",
+        "s",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "tcp_keepalives_interval": [
+        "integer",
+        "s",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "tcp_user_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "temp_buffers": [
+        "integer",
+        "8kB",
+        "user",
+        "100",
+        "1073741823",
+        ""
+      ],
+      "temp_file_limit": [
+        "integer",
+        "kB",
+        "superuser",
+        "-1",
+        "2147483647",
+        ""
+      ],
+      "temp_tablespaces": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "timezone_abbreviations": [
+        "string",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "trace_connection_negotiation": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "trace_notify": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "trace_sort": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "track_activities": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "track_activity_query_size": [
+        "integer",
+        "B",
+        "postmaster",
+        "100",
+        "1048576",
+        ""
+      ],
+      "track_commit_timestamp": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "track_cost_delay_timing": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "track_counts": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "track_functions": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{none,pl,all}"
+      ],
+      "track_io_timing": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "track_wal_io_timing": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "transaction_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "0",
+        "131072",
+        ""
+      ],
+      "transaction_deferrable": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "transaction_isolation": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{serializable,\"repeatable read\",\"read committed\",\"read uncommitted\"}"
+      ],
+      "transaction_read_only": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "transaction_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "transform_null_equals": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "unix_socket_directories": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "unix_socket_group": [
+        "string",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "unix_socket_permissions": [
+        "integer",
+        "",
+        "postmaster",
+        "0",
+        "511",
+        ""
+      ],
+      "update_process_title": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "vacuum_buffer_usage_limit": [
+        "integer",
+        "kB",
+        "user",
+        "0",
+        "16777216",
+        ""
+      ],
+      "vacuum_cost_delay": [
+        "real",
+        "ms",
+        "user",
+        "0",
+        "100",
+        ""
+      ],
+      "vacuum_cost_limit": [
+        "integer",
+        "",
+        "user",
+        "1",
+        "10000",
+        ""
+      ],
+      "vacuum_cost_page_dirty": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "10000",
+        ""
+      ],
+      "vacuum_cost_page_hit": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "10000",
+        ""
+      ],
+      "vacuum_cost_page_miss": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "10000",
+        ""
+      ],
+      "vacuum_failsafe_age": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2100000000",
+        ""
+      ],
+      "vacuum_freeze_min_age": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1000000000",
+        ""
+      ],
+      "vacuum_freeze_table_age": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2000000000",
+        ""
+      ],
+      "vacuum_max_eager_freeze_failure_rate": [
+        "real",
+        "",
+        "user",
+        "0",
+        "1",
+        ""
+      ],
+      "vacuum_multixact_failsafe_age": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2100000000",
+        ""
+      ],
+      "vacuum_multixact_freeze_min_age": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "1000000000",
+        ""
+      ],
+      "vacuum_multixact_freeze_table_age": [
+        "integer",
+        "",
+        "user",
+        "0",
+        "2000000000",
+        ""
+      ],
+      "vacuum_truncate": [
+        "bool",
+        "",
+        "user",
+        "",
+        "",
+        ""
+      ],
+      "wal_block_size": [
+        "integer",
+        "",
+        "internal",
+        "8192",
+        "8192",
+        ""
+      ],
+      "wal_buffers": [
+        "integer",
+        "8kB",
+        "postmaster",
+        "-1",
+        "262143",
+        ""
+      ],
+      "wal_compression": [
+        "enum",
+        "",
+        "superuser",
+        "",
+        "",
+        "{pglz,lz4,zstd,on,off}"
+      ],
+      "wal_consistency_checking": [
+        "string",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "wal_decode_buffer_size": [
+        "integer",
+        "B",
+        "postmaster",
+        "65536",
+        "1073741823",
+        ""
+      ],
+      "wal_init_zero": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "wal_keep_size": [
+        "integer",
+        "MB",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "wal_level": [
+        "enum",
+        "",
+        "postmaster",
+        "",
+        "",
+        "{minimal,replica,logical}"
+      ],
+      "wal_log_hints": [
+        "bool",
+        "",
+        "postmaster",
+        "",
+        "",
+        ""
+      ],
+      "wal_receiver_create_temp_slot": [
+        "bool",
+        "",
+        "sighup",
+        "",
+        "",
+        ""
+      ],
+      "wal_receiver_status_interval": [
+        "integer",
+        "s",
+        "sighup",
+        "0",
+        "2147483",
+        ""
+      ],
+      "wal_receiver_timeout": [
+        "integer",
+        "ms",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "wal_recycle": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ],
+      "wal_retrieve_retry_interval": [
+        "integer",
+        "ms",
+        "sighup",
+        "1",
+        "2147483647",
+        ""
+      ],
+      "wal_segment_size": [
+        "integer",
+        "B",
+        "internal",
+        "1048576",
+        "1073741824",
+        ""
+      ],
+      "wal_sender_timeout": [
+        "integer",
+        "ms",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "wal_skip_threshold": [
+        "integer",
+        "kB",
+        "user",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "wal_summary_keep_time": [
+        "integer",
+        "min",
+        "sighup",
+        "0",
+        "35791394",
+        ""
+      ],
+      "wal_sync_method": [
+        "enum",
+        "",
+        "sighup",
+        "",
+        "",
+        "{fsync,fdatasync,open_sync,open_datasync}"
+      ],
+      "wal_writer_delay": [
+        "integer",
+        "ms",
+        "sighup",
+        "1",
+        "10000",
+        ""
+      ],
+      "wal_writer_flush_after": [
+        "integer",
+        "8kB",
+        "sighup",
+        "0",
+        "2147483647",
+        ""
+      ],
+      "work_mem": [
+        "integer",
+        "kB",
+        "user",
+        "64",
+        "2147483647",
+        ""
+      ],
+      "xmlbinary": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{base64,hex}"
+      ],
+      "xmloption": [
+        "enum",
+        "",
+        "user",
+        "",
+        "",
+        "{content,document}"
+      ],
+      "zero_damaged_pages": [
+        "bool",
+        "",
+        "superuser",
+        "",
+        "",
+        ""
+      ]
+    },
+    "base_version": "18",
+    "columns": [
+      "vartype",
+      "unit",
+      "context",
+      "min_val",
+      "max_val",
+      "enumvals"
+    ],
+    "counts": {
+      "distinct_names": 434,
+      "rows_by_version": {
+        "10": 284,
+        "11": 304,
+        "12": 332,
+        "13": 349,
+        "14": 364,
+        "15": 371,
+        "16": 381,
+        "17": 397,
+        "18": 416,
+        "9.6": 276
+      }
+    },
+    "versions": {
+      "10": {
+        "absent": [
+          "allow_alter_system",
+          "allow_in_place_tablespaces",
+          "archive_cleanup_command",
+          "archive_library",
+          "auto_explain.log_level",
+          "auto_explain.log_parameter_max_length",
+          "auto_explain.log_settings",
+          "auto_explain.log_wal",
+          "autovacuum_vacuum_insert_scale_factor",
+          "autovacuum_vacuum_insert_threshold",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "backtrace_functions",
+          "client_connection_check_interval",
+          "commit_timestamp_buffers",
+          "compute_query_id",
+          "createrole_self_grant",
+          "data_directory_mode",
+          "debug_discard_caches",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "default_table_access_method",
+          "default_toast_compression",
+          "enable_async_append",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_incremental_sort",
+          "enable_memoize",
+          "enable_parallel_append",
+          "enable_parallel_hash",
+          "enable_partition_pruning",
+          "enable_partitionwise_aggregate",
+          "enable_partitionwise_join",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "hash_mem_multiplier",
+          "huge_page_size",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "idle_session_timeout",
+          "ignore_invalid_pages",
+          "in_hot_standby",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "jit",
+          "jit_above_cost",
+          "jit_debugging_support",
+          "jit_dump_bitcode",
+          "jit_expressions",
+          "jit_inline_above_cost",
+          "jit_optimize_above_cost",
+          "jit_profiling_support",
+          "jit_provider",
+          "jit_tuple_deforming",
+          "log_lock_failures",
+          "log_min_duration_sample",
+          "log_parameter_max_length",
+          "log_parameter_max_length_on_error",
+          "log_recovery_conflict_waits",
+          "log_startup_progress_interval",
+          "log_statement_sample_rate",
+          "log_transaction_sample_rate",
+          "logical_decoding_work_mem",
+          "maintenance_io_concurrency",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "max_parallel_maintenance_workers",
+          "max_slot_wal_keep_size",
+          "md5_password_warnings",
+          "min_dynamic_shared_memory",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "parallel_leader_participation",
+          "pg_stat_statements.track_planning",
+          "plan_cache_mode",
+          "primary_conninfo",
+          "primary_slot_name",
+          "recovery_end_command",
+          "recovery_init_sync_method",
+          "recovery_min_apply_delay",
+          "recovery_prefetch",
+          "recovery_target",
+          "recovery_target_action",
+          "recovery_target_inclusive",
+          "recovery_target_lsn",
+          "recovery_target_name",
+          "recovery_target_time",
+          "recovery_target_timeline",
+          "recovery_target_xid",
+          "recursive_worktable_factor",
+          "remove_temp_files_after_crash",
+          "reserved_connections",
+          "restore_command",
+          "restrict_nonsystem_relation_kind",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "shared_memory_size",
+          "shared_memory_size_in_huge_pages",
+          "shared_memory_type",
+          "ssl_crl_dir",
+          "ssl_groups",
+          "ssl_library",
+          "ssl_max_protocol_version",
+          "ssl_min_protocol_version",
+          "ssl_passphrase_command",
+          "ssl_passphrase_command_supports_reload",
+          "ssl_tls13_ciphers",
+          "stats_fetch_consistency",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "tcp_user_timeout",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "track_wal_io_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_failsafe_age",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_multixact_failsafe_age",
+          "vacuum_truncate",
+          "wal_decode_buffer_size",
+          "wal_init_zero",
+          "wal_keep_size",
+          "wal_receiver_create_temp_slot",
+          "wal_recycle",
+          "wal_skip_threshold",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "allow_system_table_mods": [
+            "bool",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "autovacuum_vacuum_cost_delay": [
+            "integer",
+            "ms",
+            "sighup",
+            "-1",
+            "100",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "default_with_oids": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "dynamic_shared_memory_type": [
+            "enum",
+            "",
+            "postmaster",
+            "",
+            "",
+            "{posix,sysv,mmap,none}"
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "max_files_per_process": [
+            "integer",
+            "",
+            "postmaster",
+            "25",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "operator_precedence_warning": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "pg_stat_statements.max": [
+            "integer",
+            "",
+            "postmaster",
+            "100",
+            "2147483647",
+            ""
+          ],
+          "replacement_sort_tuples": [
+            "integer",
+            "",
+            "user",
+            "0",
+            "2147483647",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "100021",
+            "100021",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "stats_temp_directory": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "track_activity_query_size": [
+            "integer",
+            "",
+            "postmaster",
+            "100",
+            "102400",
+            ""
+          ],
+          "transaction_isolation": [
+            "string",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "vacuum_cost_delay": [
+            "integer",
+            "ms",
+            "user",
+            "0",
+            "100",
+            ""
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ],
+          "wal_compression": [
+            "bool",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "wal_keep_segments": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ],
+          "wal_segment_size": [
+            "integer",
+            "8kB",
+            "internal",
+            "2048",
+            "2048",
+            ""
+          ],
+          "wal_sender_timeout": [
+            "integer",
+            "ms",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ]
+        }
+      },
+      "11": {
+        "absent": [
+          "allow_alter_system",
+          "allow_in_place_tablespaces",
+          "archive_cleanup_command",
+          "archive_library",
+          "auto_explain.log_level",
+          "auto_explain.log_parameter_max_length",
+          "auto_explain.log_settings",
+          "auto_explain.log_wal",
+          "autovacuum_vacuum_insert_scale_factor",
+          "autovacuum_vacuum_insert_threshold",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "backtrace_functions",
+          "client_connection_check_interval",
+          "commit_timestamp_buffers",
+          "compute_query_id",
+          "createrole_self_grant",
+          "debug_discard_caches",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "default_table_access_method",
+          "default_toast_compression",
+          "enable_async_append",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_incremental_sort",
+          "enable_memoize",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "hash_mem_multiplier",
+          "huge_page_size",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "idle_session_timeout",
+          "ignore_invalid_pages",
+          "in_hot_standby",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "log_min_duration_sample",
+          "log_parameter_max_length",
+          "log_parameter_max_length_on_error",
+          "log_recovery_conflict_waits",
+          "log_startup_progress_interval",
+          "log_statement_sample_rate",
+          "log_transaction_sample_rate",
+          "logical_decoding_work_mem",
+          "maintenance_io_concurrency",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "max_slot_wal_keep_size",
+          "md5_password_warnings",
+          "min_dynamic_shared_memory",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "pg_stat_statements.track_planning",
+          "plan_cache_mode",
+          "primary_conninfo",
+          "primary_slot_name",
+          "recovery_end_command",
+          "recovery_init_sync_method",
+          "recovery_min_apply_delay",
+          "recovery_prefetch",
+          "recovery_target",
+          "recovery_target_action",
+          "recovery_target_inclusive",
+          "recovery_target_lsn",
+          "recovery_target_name",
+          "recovery_target_time",
+          "recovery_target_timeline",
+          "recovery_target_xid",
+          "recursive_worktable_factor",
+          "remove_temp_files_after_crash",
+          "reserved_connections",
+          "restore_command",
+          "restrict_nonsystem_relation_kind",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "shared_memory_size",
+          "shared_memory_size_in_huge_pages",
+          "shared_memory_type",
+          "ssl_crl_dir",
+          "ssl_groups",
+          "ssl_library",
+          "ssl_max_protocol_version",
+          "ssl_min_protocol_version",
+          "ssl_tls13_ciphers",
+          "stats_fetch_consistency",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "tcp_user_timeout",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "track_wal_io_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_failsafe_age",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_multixact_failsafe_age",
+          "vacuum_truncate",
+          "wal_decode_buffer_size",
+          "wal_init_zero",
+          "wal_keep_size",
+          "wal_receiver_create_temp_slot",
+          "wal_recycle",
+          "wal_skip_threshold",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "allow_system_table_mods": [
+            "bool",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "autovacuum_vacuum_cost_delay": [
+            "integer",
+            "ms",
+            "sighup",
+            "-1",
+            "100",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "default_with_oids": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "dynamic_shared_memory_type": [
+            "enum",
+            "",
+            "postmaster",
+            "",
+            "",
+            "{posix,sysv,mmap,none}"
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "max_files_per_process": [
+            "integer",
+            "",
+            "postmaster",
+            "25",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "operator_precedence_warning": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "pg_stat_statements.max": [
+            "integer",
+            "",
+            "postmaster",
+            "100",
+            "2147483647",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "110016",
+            "110016",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "stats_temp_directory": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "track_activity_query_size": [
+            "integer",
+            "B",
+            "postmaster",
+            "100",
+            "102400",
+            ""
+          ],
+          "transaction_isolation": [
+            "string",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "vacuum_cleanup_index_scale_factor": [
+            "real",
+            "",
+            "user",
+            "0",
+            "1e+10",
+            ""
+          ],
+          "vacuum_cost_delay": [
+            "integer",
+            "ms",
+            "user",
+            "0",
+            "100",
+            ""
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ],
+          "wal_compression": [
+            "bool",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "wal_keep_segments": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ],
+          "wal_sender_timeout": [
+            "integer",
+            "ms",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ]
+        }
+      },
+      "12": {
+        "absent": [
+          "allow_alter_system",
+          "archive_library",
+          "auto_explain.log_parameter_max_length",
+          "auto_explain.log_wal",
+          "autovacuum_vacuum_insert_scale_factor",
+          "autovacuum_vacuum_insert_threshold",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "backtrace_functions",
+          "client_connection_check_interval",
+          "commit_timestamp_buffers",
+          "compute_query_id",
+          "createrole_self_grant",
+          "debug_discard_caches",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "default_toast_compression",
+          "enable_async_append",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_incremental_sort",
+          "enable_memoize",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "hash_mem_multiplier",
+          "huge_page_size",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "idle_session_timeout",
+          "ignore_invalid_pages",
+          "in_hot_standby",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "log_min_duration_sample",
+          "log_parameter_max_length",
+          "log_parameter_max_length_on_error",
+          "log_recovery_conflict_waits",
+          "log_startup_progress_interval",
+          "log_statement_sample_rate",
+          "logical_decoding_work_mem",
+          "maintenance_io_concurrency",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "max_slot_wal_keep_size",
+          "md5_password_warnings",
+          "min_dynamic_shared_memory",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "pg_stat_statements.track_planning",
+          "recovery_init_sync_method",
+          "recovery_prefetch",
+          "recursive_worktable_factor",
+          "remove_temp_files_after_crash",
+          "reserved_connections",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "shared_memory_size",
+          "shared_memory_size_in_huge_pages",
+          "ssl_crl_dir",
+          "ssl_groups",
+          "ssl_tls13_ciphers",
+          "stats_fetch_consistency",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "track_wal_io_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_failsafe_age",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_multixact_failsafe_age",
+          "vacuum_truncate",
+          "wal_decode_buffer_size",
+          "wal_keep_size",
+          "wal_receiver_create_temp_slot",
+          "wal_skip_threshold",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "allow_system_table_mods": [
+            "bool",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "max_files_per_process": [
+            "integer",
+            "",
+            "postmaster",
+            "25",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "operator_precedence_warning": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "primary_conninfo": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "primary_slot_name": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "promote_trigger_file": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "restore_command": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "120022",
+            "120022",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "stats_temp_directory": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "track_activity_query_size": [
+            "integer",
+            "B",
+            "postmaster",
+            "100",
+            "102400",
+            ""
+          ],
+          "vacuum_cleanup_index_scale_factor": [
+            "real",
+            "",
+            "user",
+            "0",
+            "1e+10",
+            ""
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ],
+          "wal_compression": [
+            "bool",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "wal_keep_segments": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ]
+        }
+      },
+      "13": {
+        "absent": [
+          "allow_alter_system",
+          "archive_library",
+          "auto_explain.log_parameter_max_length",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "client_connection_check_interval",
+          "commit_timestamp_buffers",
+          "compute_query_id",
+          "createrole_self_grant",
+          "debug_discard_caches",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "default_toast_compression",
+          "enable_async_append",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_memoize",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "huge_page_size",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "idle_session_timeout",
+          "in_hot_standby",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "log_recovery_conflict_waits",
+          "log_startup_progress_interval",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "md5_password_warnings",
+          "min_dynamic_shared_memory",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "recovery_init_sync_method",
+          "recovery_prefetch",
+          "recursive_worktable_factor",
+          "remove_temp_files_after_crash",
+          "reserved_connections",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "shared_memory_size",
+          "shared_memory_size_in_huge_pages",
+          "ssl_crl_dir",
+          "ssl_groups",
+          "ssl_tls13_ciphers",
+          "stats_fetch_consistency",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "track_wal_io_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_failsafe_age",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_multixact_failsafe_age",
+          "vacuum_truncate",
+          "wal_decode_buffer_size",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "operator_precedence_warning": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "promote_trigger_file": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "restore_command": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "130023",
+            "130023",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "stats_temp_directory": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "vacuum_cleanup_index_scale_factor": [
+            "real",
+            "",
+            "user",
+            "0",
+            "1e+10",
+            ""
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ],
+          "wal_compression": [
+            "bool",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      "14": {
+        "absent": [
+          "allow_alter_system",
+          "archive_library",
+          "auto_explain.log_parameter_max_length",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "commit_timestamp_buffers",
+          "createrole_self_grant",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "log_startup_progress_interval",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "md5_password_warnings",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "recovery_prefetch",
+          "recursive_worktable_factor",
+          "reserved_connections",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "shared_memory_size",
+          "shared_memory_size_in_huge_pages",
+          "ssl_groups",
+          "ssl_tls13_ciphers",
+          "stats_fetch_consistency",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_truncate",
+          "wal_decode_buffer_size",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "promote_trigger_file": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "140023",
+            "140023",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "stats_temp_directory": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ],
+          "wal_compression": [
+            "bool",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      "15": {
+        "absent": [
+          "allow_alter_system",
+          "auto_explain.log_parameter_max_length",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "commit_timestamp_buffers",
+          "createrole_self_grant",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "md5_password_warnings",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "reserved_connections",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "ssl_groups",
+          "ssl_tls13_ciphers",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_truncate",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "promote_trigger_file": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "150018",
+            "150018",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ]
+        }
+      },
+      "16": {
+        "absent": [
+          "allow_alter_system",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "commit_timestamp_buffers",
+          "enable_distinct_reordering",
+          "enable_group_by_reordering",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "huge_pages_status",
+          "idle_replication_slot_timeout",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "max_active_replication_origins",
+          "max_notify_queue_pages",
+          "md5_password_warnings",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "serializable_buffers",
+          "ssl_groups",
+          "ssl_tls13_ciphers",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_truncate",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "160014",
+            "160014",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ]
+        }
+      },
+      "17": {
+        "absent": [
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "enable_distinct_reordering",
+          "enable_self_join_elimination",
+          "extension_control_path",
+          "file_copy_method",
+          "idle_replication_slot_timeout",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "log_lock_failures",
+          "max_active_replication_origins",
+          "md5_password_warnings",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "ssl_groups",
+          "ssl_tls13_ciphers",
+          "track_cost_delay_timing",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_truncate"
+        ],
+        "changed": {
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "io_combine_limit": [
+            "integer",
+            "8kB",
+            "user",
+            "1",
+            "32",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "170010",
+            "170010",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      "9.6": {
+        "absent": [
+          "allow_alter_system",
+          "allow_in_place_tablespaces",
+          "archive_cleanup_command",
+          "archive_library",
+          "auto_explain.log_level",
+          "auto_explain.log_parameter_max_length",
+          "auto_explain.log_settings",
+          "auto_explain.log_wal",
+          "autovacuum_vacuum_insert_scale_factor",
+          "autovacuum_vacuum_insert_threshold",
+          "autovacuum_vacuum_max_threshold",
+          "autovacuum_worker_slots",
+          "backtrace_functions",
+          "client_connection_check_interval",
+          "commit_timestamp_buffers",
+          "compute_query_id",
+          "createrole_self_grant",
+          "data_directory_mode",
+          "debug_discard_caches",
+          "debug_io_direct",
+          "debug_logical_replication_streaming",
+          "debug_parallel_query",
+          "default_table_access_method",
+          "default_toast_compression",
+          "enable_async_append",
+          "enable_distinct_reordering",
+          "enable_gathermerge",
+          "enable_group_by_reordering",
+          "enable_incremental_sort",
+          "enable_memoize",
+          "enable_parallel_append",
+          "enable_parallel_hash",
+          "enable_partition_pruning",
+          "enable_partitionwise_aggregate",
+          "enable_partitionwise_join",
+          "enable_presorted_aggregate",
+          "enable_self_join_elimination",
+          "event_triggers",
+          "extension_control_path",
+          "file_copy_method",
+          "file_extend_method",
+          "gss_accept_delegation",
+          "hash_mem_multiplier",
+          "huge_page_size",
+          "huge_pages_status",
+          "icu_validation_level",
+          "idle_replication_slot_timeout",
+          "idle_session_timeout",
+          "ignore_invalid_pages",
+          "in_hot_standby",
+          "io_combine_limit",
+          "io_max_combine_limit",
+          "io_max_concurrency",
+          "io_method",
+          "io_workers",
+          "jit",
+          "jit_above_cost",
+          "jit_debugging_support",
+          "jit_dump_bitcode",
+          "jit_expressions",
+          "jit_inline_above_cost",
+          "jit_optimize_above_cost",
+          "jit_profiling_support",
+          "jit_provider",
+          "jit_tuple_deforming",
+          "log_lock_failures",
+          "log_min_duration_sample",
+          "log_parameter_max_length",
+          "log_parameter_max_length_on_error",
+          "log_recovery_conflict_waits",
+          "log_startup_progress_interval",
+          "log_statement_sample_rate",
+          "log_transaction_sample_rate",
+          "logical_decoding_work_mem",
+          "maintenance_io_concurrency",
+          "max_active_replication_origins",
+          "max_logical_replication_workers",
+          "max_notify_queue_pages",
+          "max_parallel_apply_workers_per_subscription",
+          "max_parallel_maintenance_workers",
+          "max_parallel_workers",
+          "max_pred_locks_per_page",
+          "max_pred_locks_per_relation",
+          "max_slot_wal_keep_size",
+          "max_sync_workers_per_subscription",
+          "md5_password_warnings",
+          "min_dynamic_shared_memory",
+          "min_parallel_index_scan_size",
+          "min_parallel_table_scan_size",
+          "multixact_member_buffers",
+          "multixact_offset_buffers",
+          "notify_buffers",
+          "num_os_semaphores",
+          "oauth_validator_libraries",
+          "parallel_leader_participation",
+          "pg_stat_statements.track_planning",
+          "plan_cache_mode",
+          "primary_conninfo",
+          "primary_slot_name",
+          "recovery_end_command",
+          "recovery_init_sync_method",
+          "recovery_min_apply_delay",
+          "recovery_prefetch",
+          "recovery_target",
+          "recovery_target_action",
+          "recovery_target_inclusive",
+          "recovery_target_lsn",
+          "recovery_target_name",
+          "recovery_target_time",
+          "recovery_target_timeline",
+          "recovery_target_xid",
+          "recursive_worktable_factor",
+          "remove_temp_files_after_crash",
+          "reserved_connections",
+          "restore_command",
+          "restrict_nonsystem_relation_kind",
+          "scram_iterations",
+          "send_abort_for_crash",
+          "send_abort_for_kill",
+          "serializable_buffers",
+          "shared_memory_size",
+          "shared_memory_size_in_huge_pages",
+          "shared_memory_type",
+          "ssl_crl_dir",
+          "ssl_dh_params_file",
+          "ssl_groups",
+          "ssl_library",
+          "ssl_max_protocol_version",
+          "ssl_min_protocol_version",
+          "ssl_passphrase_command",
+          "ssl_passphrase_command_supports_reload",
+          "ssl_tls13_ciphers",
+          "stats_fetch_consistency",
+          "subtransaction_buffers",
+          "summarize_wal",
+          "sync_replication_slots",
+          "synchronized_standby_slots",
+          "tcp_user_timeout",
+          "trace_connection_negotiation",
+          "track_cost_delay_timing",
+          "track_wal_io_timing",
+          "transaction_buffers",
+          "transaction_timeout",
+          "vacuum_buffer_usage_limit",
+          "vacuum_failsafe_age",
+          "vacuum_max_eager_freeze_failure_rate",
+          "vacuum_multixact_failsafe_age",
+          "vacuum_truncate",
+          "wal_consistency_checking",
+          "wal_decode_buffer_size",
+          "wal_init_zero",
+          "wal_keep_size",
+          "wal_receiver_create_temp_slot",
+          "wal_recycle",
+          "wal_skip_threshold",
+          "wal_summary_keep_time"
+        ],
+        "changed": {
+          "allow_system_table_mods": [
+            "bool",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "autovacuum_max_workers": [
+            "integer",
+            "",
+            "postmaster",
+            "1",
+            "262143",
+            ""
+          ],
+          "autovacuum_vacuum_cost_delay": [
+            "integer",
+            "ms",
+            "sighup",
+            "-1",
+            "100",
+            ""
+          ],
+          "bgwriter_lru_maxpages": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000",
+            ""
+          ],
+          "db_user_namespace": [
+            "bool",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "default_with_oids": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "dynamic_shared_memory_type": [
+            "enum",
+            "",
+            "postmaster",
+            "",
+            "",
+            "{posix,sysv,mmap,none}"
+          ],
+          "extension_destdir": [
+            "string",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "force_parallel_mode": [
+            "enum",
+            "",
+            "user",
+            "",
+            "",
+            "{off,on,regress}"
+          ],
+          "lc_collate": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "lc_ctype": [
+            "string",
+            "",
+            "internal",
+            "",
+            "",
+            ""
+          ],
+          "log_connections": [
+            "bool",
+            "",
+            "superuser-backend",
+            "",
+            "",
+            ""
+          ],
+          "log_rotation_size": [
+            "integer",
+            "kB",
+            "sighup",
+            "0",
+            "2097151",
+            ""
+          ],
+          "maintenance_work_mem": [
+            "integer",
+            "kB",
+            "user",
+            "1024",
+            "2147483647",
+            ""
+          ],
+          "max_files_per_process": [
+            "integer",
+            "",
+            "postmaster",
+            "25",
+            "2147483647",
+            ""
+          ],
+          "max_wal_size": [
+            "integer",
+            "16MB",
+            "sighup",
+            "2",
+            "2147483647",
+            ""
+          ],
+          "min_parallel_relation_size": [
+            "integer",
+            "8kB",
+            "user",
+            "0",
+            "715827882",
+            ""
+          ],
+          "min_wal_size": [
+            "integer",
+            "16MB",
+            "sighup",
+            "2",
+            "2147483647",
+            ""
+          ],
+          "old_snapshot_threshold": [
+            "integer",
+            "min",
+            "postmaster",
+            "-1",
+            "86400",
+            ""
+          ],
+          "operator_precedence_warning": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "password_encryption": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "pg_stat_statements.max": [
+            "integer",
+            "",
+            "postmaster",
+            "100",
+            "2147483647",
+            ""
+          ],
+          "replacement_sort_tuples": [
+            "integer",
+            "",
+            "user",
+            "0",
+            "2147483647",
+            ""
+          ],
+          "server_version_num": [
+            "integer",
+            "",
+            "internal",
+            "90624",
+            "90624",
+            ""
+          ],
+          "sql_inheritance": [
+            "bool",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "ssl": [
+            "bool",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_ca_file": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_cert_file": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_ciphers": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_crl_file": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_ecdh_curve": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_key_file": [
+            "string",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "ssl_prefer_server_ciphers": [
+            "bool",
+            "",
+            "postmaster",
+            "",
+            "",
+            ""
+          ],
+          "stats_temp_directory": [
+            "string",
+            "",
+            "sighup",
+            "",
+            "",
+            ""
+          ],
+          "trace_recovery_messages": [
+            "enum",
+            "",
+            "sighup",
+            "",
+            "",
+            "{debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
+          ],
+          "track_activity_query_size": [
+            "integer",
+            "",
+            "postmaster",
+            "100",
+            "102400",
+            ""
+          ],
+          "transaction_isolation": [
+            "string",
+            "",
+            "user",
+            "",
+            "",
+            ""
+          ],
+          "vacuum_cost_delay": [
+            "integer",
+            "ms",
+            "user",
+            "0",
+            "100",
+            ""
+          ],
+          "vacuum_defer_cleanup_age": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "1000000",
+            ""
+          ],
+          "wal_compression": [
+            "bool",
+            "",
+            "superuser",
+            "",
+            "",
+            ""
+          ],
+          "wal_keep_segments": [
+            "integer",
+            "",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ],
+          "wal_segment_size": [
+            "integer",
+            "8kB",
+            "internal",
+            "2048",
+            "2048",
+            ""
+          ],
+          "wal_sender_timeout": [
+            "integer",
+            "ms",
+            "sighup",
+            "0",
+            "2147483647",
+            ""
+          ]
+        }
+      }
+    }
+  },
+  "payload_digest": "sha256:47b17ee9c5678629a4ea33a6638834d9e340912ade1676e6bd858dc008c6a78a",
+  "schema_version": "pg_configurator/web-data-v1"
+}

@@ -94,6 +94,53 @@ class TestConfiguratorCore(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.make_conf(pg_version="18", **arguments)
 
+    def test_memory_budget_bounds_are_per_part(self):
+        """shared_buffers may claim more than the per-session budgets around it.
+
+        It is allocated once at startup; client and maintenance memory are
+        multiplied by the sessions using them at the same time, so they keep the
+        smaller ceiling. The total stops below the envelope check's 90% because
+        the envelope also counts lock tables and the per-backend reserve.
+        """
+
+        generous = self.make_conf(
+            pg_version="18",
+            shared_buffers_part=0.8,
+            client_mem_part=0.03,
+            maintenance_mem_part=0.02,
+        )
+        modest = self.make_conf(
+            pg_version="18",
+            shared_buffers_part=0.25,
+            client_mem_part=0.03,
+            maintenance_mem_part=0.02,
+        )
+        self.assertGreater(
+            UnitConverter.size_from(generous["shared_buffers"], system=UnitConverter.sys_pg),
+            2 * UnitConverter.size_from(modest["shared_buffers"], system=UnitConverter.sys_pg),
+        )
+
+        rejected = (
+            ({"shared_buffers_part": 0.81}, "shared_buffers_part .* not greater than 0.8"),
+            ({"client_mem_part": 0.41}, "client_mem_part .* not greater than 0.4"),
+            ({"maintenance_mem_part": 0.41}, "maintenance_mem_part .* not greater than 0.4"),
+            (
+                {"shared_buffers_part": 0.8, "client_mem_part": 0.04},
+                "at most 85% of available RAM; got 86.00%",
+            ),
+        )
+        for arguments, message in rejected:
+            with self.subTest(arguments=arguments):
+                with self.assertRaisesRegex(ValueError, message):
+                    self.make_conf(
+                        pg_version="18",
+                        **{
+                            "client_mem_part": 0.02,
+                            "maintenance_mem_part": 0.02,
+                            **arguments,
+                        },
+                    )
+
     def test_invalid_resource_and_range_inputs_are_rejected(self):
         invalid_calls = (
             (("0", "16Gi"), {}),

@@ -71,7 +71,7 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
-          pytest -m 'not integration'
+          pytest -m 'not integration and not web'
 
       - name: Build wheel and source distribution
         run: python -m build

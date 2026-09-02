@@ -133,7 +133,7 @@ class TestCLIArguments(unittest.TestCase):
             run_pgc(["--component-capabilities", "--machine", "--request-id=test-capabilities"])
 
         payload = json.loads(stdout.getvalue())
-        self.assertEqual("pg_play/component/v1", payload["contract_version"])
+        self.assertEqual("pg_play/component/v2", payload["contract_version"])
         self.assertEqual("pg_configurator", payload["component"])
         self.assertEqual("test-capabilities", payload["request_id"])
         self.assertEqual("succeeded", payload["status"])

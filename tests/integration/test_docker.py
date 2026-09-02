@@ -1,8 +1,16 @@
-"""Boot-smoke generated configurations in official PostgreSQL images."""
+"""Boot-smoke generated configurations in official PostgreSQL images.
+
+The configuration is produced twice: by the Python reference and by the
+JavaScript build. The differential suites already prove the two agree; this
+proves the agreed answer actually starts a server, and it does so for whichever
+producer generated it.
+"""
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +18,9 @@ from types import SimpleNamespace
 import pytest
 
 from pg_configurator.configurator import PGConfigurator
+
+ROOT = Path(__file__).resolve().parents[2]
+JS_CLI = ROOT / "web" / "bin" / "pg-configurator.mjs"
 
 pytestmark = [
     pytest.mark.integration,
@@ -36,18 +47,48 @@ def requested_versions() -> tuple[str, ...]:
     return selected
 
 
-@pytest.mark.parametrize("version", requested_versions())
-def test_generated_base_configuration_boots(version: str, tmp_path: Path) -> None:
+def python_configuration(version: str) -> dict[str, str]:
     configurator = PGConfigurator(
         SimpleNamespace(output_file_name="", debug_mode=False), ext_params=[]
     )
-    config = configurator.make_conf(
+    return configurator.make_conf(
         "8",
         "16Gi",
         pg_version=version,
         replication_mode="physical",
     )
-    config_path = tmp_path / f"postgresql-{version.replace('.', '_')}.conf"
+
+
+def javascript_configuration(version: str) -> dict[str, str]:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    completed = subprocess.run(
+        [
+            node,
+            str(JS_CLI),
+            "--db-cpu=8",
+            "--db-ram=16Gi",
+            f"--pg-version={version}",
+            "--replication-mode=physical",
+            "--output-format=json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return json.loads(completed.stdout)["postgresql_conf"]
+
+
+PRODUCERS = {"python": python_configuration, "javascript": javascript_configuration}
+
+
+@pytest.mark.parametrize("producer", sorted(PRODUCERS))
+@pytest.mark.parametrize("version", requested_versions())
+def test_generated_base_configuration_boots(version: str, producer: str, tmp_path: Path) -> None:
+    config = PRODUCERS[producer](version)
+    config_path = tmp_path / f"postgresql-{version.replace('.', '_')}-{producer}.conf"
     config_path.write_text(
         "\n".join(f"{name} = {value}" for name, value in config.items()) + "\n",
         encoding="utf-8",

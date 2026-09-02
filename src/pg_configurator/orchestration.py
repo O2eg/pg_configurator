@@ -13,7 +13,7 @@ from typing import Any
 
 from pg_configurator.version import __version__
 
-CONTRACT_VERSION = "pg_play/component/v1"
+CONTRACT_VERSION = "pg_play/component/v2"
 CAPABILITY_SCHEMA_VERSION = "pg_play/capabilities/v1"
 MACHINE_INTERFACE = {
     "machine_flag": "--machine",
@@ -77,7 +77,7 @@ def capabilities() -> dict[str, Any]:
             },
         },
         "artifact_schemas": [
-            "pg_configurator/v1",
+            "pg_configurator/v2",
             "pg_configurator/setting-history-v1",
         ],
         "output_formats": ["conf", "json", "patroni-json"],
@@ -97,7 +97,7 @@ def envelope(
     request_id: str | None,
     result: Any = None,
     artifacts: list[dict[str, Any]] | None = None,
-    warnings: list[str] | None = None,
+    advisories: list[dict[str, Any]] | None = None,
     error: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -109,6 +109,6 @@ def envelope(
         "status": status,
         "result": result,
         "artifacts": artifacts or [],
-        "warnings": warnings or [],
+        "advisories": advisories or [],
         "error": error,
     }

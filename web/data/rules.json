@@ -1,0 +1,2592 @@
+{
+  "generator": "tools/export_web_data.py",
+  "package_version": "0.10.0",
+  "payload": {
+    "counts": {
+      "deprecated_sentinels": 3,
+      "distinct_expressions": 86,
+      "rule_entries": 303
+    },
+    "deprecated_sentinel": "deprecated",
+    "enums": {
+      "DiskType": [
+        [
+          "SATA",
+          "SATA"
+        ],
+        [
+          "SAS",
+          "SAS"
+        ],
+        [
+          "SSD",
+          "SSD"
+        ],
+        [
+          "NVME",
+          "NVME"
+        ],
+        [
+          "NETWORK",
+          "NETWORK"
+        ]
+      ],
+      "DutyDB": [
+        [
+          "STATISTIC",
+          "statistic"
+        ],
+        [
+          "MIXED",
+          "mixed"
+        ],
+        [
+          "OLTP",
+          "oltp"
+        ],
+        [
+          "FINANCIAL",
+          "financial"
+        ]
+      ],
+      "OutputFormat": [
+        [
+          "JSON",
+          "json"
+        ],
+        [
+          "PATRONI_JSON",
+          "patroni-json"
+        ],
+        [
+          "CONF",
+          "conf"
+        ]
+      ],
+      "Platform": [
+        [
+          "WINDOWS",
+          "WINDOWS"
+        ],
+        [
+          "LINUX",
+          "LINUX"
+        ]
+      ],
+      "ReplicationMode": [
+        [
+          "NONE",
+          "none"
+        ],
+        [
+          "PHYSICAL",
+          "physical"
+        ],
+        [
+          "LOGICAL",
+          "logical"
+        ]
+      ]
+    },
+    "evaluation_contract": {
+      "attribute_roots": [
+        "DiskType",
+        "DutyDB",
+        "PGConfigurator",
+        "Platform",
+        "ReplicationMode",
+        "UnitConverter"
+      ],
+      "callables": [
+        "PGConfigurator.calc_synchronous_commit",
+        "UnitConverter.size_from",
+        "calc_client_mem_values",
+        "calc_connection_limit",
+        "calc_connection_scale",
+        "calc_cpu_scale",
+        "calc_disk_scale",
+        "calc_system_scores_scale",
+        "float",
+        "int",
+        "max",
+        "min",
+        "round"
+      ],
+      "context_bindings": [
+        "DiskType",
+        "DutyDB",
+        "PGConfigurator",
+        "Platform",
+        "ReplicationMode",
+        "UnitConverter",
+        "authentication_timeout",
+        "auto_explain_log_min_duration",
+        "auto_explain_sample_rate",
+        "autovacuum_analyze_scale_factor",
+        "autovacuum_cost_delay_ms",
+        "autovacuum_cost_limit",
+        "autovacuum_naptime",
+        "autovacuum_vacuum_scale_factor",
+        "autovacuum_work_mem_bytes",
+        "autovacuum_worker_slots",
+        "autovacuum_workers",
+        "autovacuum_workers_mem_part",
+        "calc_client_mem_values",
+        "calc_connection_limit",
+        "calc_connection_scale",
+        "calc_cpu_scale",
+        "calc_disk_scale",
+        "calc_system_scores_scale",
+        "checkpoint_timeout",
+        "client_connection_check_interval",
+        "connection_lock_target",
+        "deadlock_timeout",
+        "default_statistics_target",
+        "disk_scores",
+        "disk_type",
+        "duty_db",
+        "effective_cache_size_bytes",
+        "effective_io_concurrency",
+        "float",
+        "hash_mem_multiplier",
+        "idle_in_transaction_session_timeout",
+        "idle_session_timeout",
+        "int",
+        "io_combine_limit_bytes",
+        "io_max_combine_limit_bytes",
+        "io_workers",
+        "jit",
+        "jit_above_cost",
+        "jit_inline_above_cost",
+        "jit_optimize_above_cost",
+        "lock_timeout",
+        "log_min_duration_statement",
+        "log_statement_sample_rate",
+        "log_transaction_sample_rate",
+        "logical_decoding_work_mem_bytes",
+        "logical_worker_budget",
+        "maint_max_conns",
+        "maintenance_conns_mem_part",
+        "maintenance_io_concurrency",
+        "maintenance_mem_part",
+        "maintenance_work_mem_bytes",
+        "max",
+        "max_autovac_workers",
+        "max_connections",
+        "max_connections_value",
+        "max_conns",
+        "max_locks_per_transaction",
+        "max_pred_locks_per_page",
+        "max_pred_locks_per_relation",
+        "max_pred_locks_per_transaction",
+        "max_slot_wal_keep_size_bytes",
+        "max_standby_streaming_delay",
+        "max_wal_size_bytes",
+        "min",
+        "min_autovac_workers",
+        "min_conns",
+        "min_parallel_index_scan_size",
+        "min_parallel_table_scan_size",
+        "min_wal_size_bytes",
+        "page_size",
+        "parallel_apply_workers",
+        "parallel_maintenance_workers",
+        "parallel_setup_cost",
+        "parallel_tuple_cost",
+        "parallel_worker_budget",
+        "parallel_workers_per_gather",
+        "pitr_enabled",
+        "platform",
+        "profile_1c_statistics_target",
+        "profile_backend_statistics_target",
+        "random_page_cost",
+        "replication_enabled",
+        "replication_mode",
+        "replication_network_timeout",
+        "replication_slot_budget",
+        "round",
+        "shared_buffers",
+        "shared_buffers_bytes",
+        "shared_buffers_part",
+        "shared_preload_libraries_value",
+        "statement_timeout",
+        "sync_workers_per_subscription",
+        "synchronous_commit",
+        "synchronous_standby_names",
+        "tcp_keepalives_count",
+        "tcp_keepalives_idle_seconds",
+        "tcp_keepalives_interval_seconds",
+        "tcp_user_timeout",
+        "total_cpu_cores",
+        "total_ram_in_bytes",
+        "transaction_timeout",
+        "vacuum_buffer_usage_limit_bytes",
+        "wal_keep_bytes",
+        "wal_keep_segments",
+        "wal_level",
+        "wal_sender_budget",
+        "worker_process_budget"
+      ]
+    },
+    "expressions": {
+      "'10s' if replication_enabled else '0'": {
+        "body": {
+          "k": "str",
+          "t": "Const",
+          "v": "10s"
+        },
+        "orelse": {
+          "k": "str",
+          "t": "Const",
+          "v": "0"
+        },
+        "t": "IfExp",
+        "test": {
+          "id": "replication_enabled",
+          "t": "Name"
+        }
+      },
+      "'1d' if replication_slot_budget else '0'": {
+        "body": {
+          "k": "str",
+          "t": "Const",
+          "v": "1d"
+        },
+        "orelse": {
+          "k": "str",
+          "t": "Const",
+          "v": "0"
+        },
+        "t": "IfExp",
+        "test": {
+          "id": "replication_slot_budget",
+          "t": "Name"
+        }
+      },
+      "'on' if pitr_enabled or replication_enabled else 'off'": {
+        "body": {
+          "k": "str",
+          "t": "Const",
+          "v": "on"
+        },
+        "orelse": {
+          "k": "str",
+          "t": "Const",
+          "v": "off"
+        },
+        "t": "IfExp",
+        "test": {
+          "op": "Or",
+          "t": "BoolOp",
+          "values": [
+            {
+              "id": "pitr_enabled",
+              "t": "Name"
+            },
+            {
+              "id": "replication_enabled",
+              "t": "Name"
+            }
+          ]
+        }
+      },
+      "'on' if replication_enabled else 'off'": {
+        "body": {
+          "k": "str",
+          "t": "Const",
+          "v": "on"
+        },
+        "orelse": {
+          "k": "str",
+          "t": "Const",
+          "v": "off"
+        },
+        "t": "IfExp",
+        "test": {
+          "id": "replication_enabled",
+          "t": "Name"
+        }
+      },
+      "8 if duty_db == DutyDB.FINANCIAL else 8 if duty_db == DutyDB.OLTP else 9 if duty_db == DutyDB.MIXED else 10": {
+        "body": {
+          "k": "int",
+          "t": "Const",
+          "v": 8
+        },
+        "orelse": {
+          "body": {
+            "k": "int",
+            "t": "Const",
+            "v": 8
+          },
+          "orelse": {
+            "body": {
+              "k": "int",
+              "t": "Const",
+              "v": 9
+            },
+            "orelse": {
+              "k": "int",
+              "t": "Const",
+              "v": 10
+            },
+            "t": "IfExp",
+            "test": {
+              "comparators": [
+                {
+                  "attr": "MIXED",
+                  "t": "Attribute",
+                  "value": {
+                    "id": "DutyDB",
+                    "t": "Name"
+                  }
+                }
+              ],
+              "left": {
+                "id": "duty_db",
+                "t": "Name"
+              },
+              "ops": [
+                "Eq"
+              ],
+              "t": "Compare"
+            }
+          },
+          "t": "IfExp",
+          "test": {
+            "comparators": [
+              {
+                "attr": "OLTP",
+                "t": "Attribute",
+                "value": {
+                  "id": "DutyDB",
+                  "t": "Name"
+                }
+              }
+            ],
+            "left": {
+              "id": "duty_db",
+              "t": "Name"
+            },
+            "ops": [
+              "Eq"
+            ],
+            "t": "Compare"
+          }
+        },
+        "t": "IfExp",
+        "test": {
+          "comparators": [
+            {
+              "attr": "FINANCIAL",
+              "t": "Attribute",
+              "value": {
+                "id": "DutyDB",
+                "t": "Name"
+              }
+            }
+          ],
+          "left": {
+            "id": "duty_db",
+            "t": "Name"
+          },
+          "ops": [
+            "Eq"
+          ],
+          "t": "Compare"
+        }
+      },
+      "authentication_timeout": {
+        "id": "authentication_timeout",
+        "t": "Name"
+      },
+      "auto_explain_log_min_duration": {
+        "id": "auto_explain_log_min_duration",
+        "t": "Name"
+      },
+      "auto_explain_sample_rate": {
+        "id": "auto_explain_sample_rate",
+        "t": "Name"
+      },
+      "autovacuum_analyze_scale_factor": {
+        "id": "autovacuum_analyze_scale_factor",
+        "t": "Name"
+      },
+      "autovacuum_cost_delay_ms": {
+        "id": "autovacuum_cost_delay_ms",
+        "t": "Name"
+      },
+      "autovacuum_cost_limit": {
+        "id": "autovacuum_cost_limit",
+        "t": "Name"
+      },
+      "autovacuum_naptime": {
+        "id": "autovacuum_naptime",
+        "t": "Name"
+      },
+      "autovacuum_vacuum_scale_factor": {
+        "id": "autovacuum_vacuum_scale_factor",
+        "t": "Name"
+      },
+      "autovacuum_work_mem_bytes": {
+        "id": "autovacuum_work_mem_bytes",
+        "t": "Name"
+      },
+      "autovacuum_worker_slots": {
+        "id": "autovacuum_worker_slots",
+        "t": "Name"
+      },
+      "autovacuum_workers": {
+        "id": "autovacuum_workers",
+        "t": "Name"
+      },
+      "calc_client_mem_values(max_connections, 0.5)[0]": {
+        "index": {
+          "k": "int",
+          "t": "Const",
+          "v": 0
+        },
+        "t": "Subscript",
+        "value": {
+          "args": [
+            {
+              "id": "max_connections",
+              "t": "Name"
+            },
+            {
+              "k": "float",
+              "t": "Const",
+              "v": 0.5
+            }
+          ],
+          "func": {
+            "id": "calc_client_mem_values",
+            "t": "Name"
+          },
+          "keywords": [],
+          "t": "Call"
+        }
+      },
+      "calc_client_mem_values(max_connections, 0.5)[1]": {
+        "index": {
+          "k": "int",
+          "t": "Const",
+          "v": 1
+        },
+        "t": "Subscript",
+        "value": {
+          "args": [
+            {
+              "id": "max_connections",
+              "t": "Name"
+            },
+            {
+              "k": "float",
+              "t": "Const",
+              "v": 0.5
+            }
+          ],
+          "func": {
+            "id": "calc_client_mem_values",
+            "t": "Name"
+          },
+          "keywords": [],
+          "t": "Call"
+        }
+      },
+      "calc_client_mem_values(max_connections_value, 0.1)[0]": {
+        "index": {
+          "k": "int",
+          "t": "Const",
+          "v": 0
+        },
+        "t": "Subscript",
+        "value": {
+          "args": [
+            {
+              "id": "max_connections_value",
+              "t": "Name"
+            },
+            {
+              "k": "float",
+              "t": "Const",
+              "v": 0.1
+            }
+          ],
+          "func": {
+            "id": "calc_client_mem_values",
+            "t": "Name"
+          },
+          "keywords": [],
+          "t": "Call"
+        }
+      },
+      "calc_client_mem_values(max_connections_value, 0.1)[1]": {
+        "index": {
+          "k": "int",
+          "t": "Const",
+          "v": 1
+        },
+        "t": "Subscript",
+        "value": {
+          "args": [
+            {
+              "id": "max_connections_value",
+              "t": "Name"
+            },
+            {
+              "k": "float",
+              "t": "Const",
+              "v": 0.1
+            }
+          ],
+          "func": {
+            "id": "calc_client_mem_values",
+            "t": "Name"
+          },
+          "keywords": [],
+          "t": "Call"
+        }
+      },
+      "calc_connection_limit(1000, min_conns)": {
+        "args": [
+          {
+            "k": "int",
+            "t": "Const",
+            "v": 1000
+          },
+          {
+            "id": "min_conns",
+            "t": "Name"
+          }
+        ],
+        "func": {
+          "id": "calc_connection_limit",
+          "t": "Name"
+        },
+        "keywords": [],
+        "t": "Call"
+      },
+      "checkpoint_timeout": {
+        "id": "checkpoint_timeout",
+        "t": "Name"
+      },
+      "client_connection_check_interval": {
+        "id": "client_connection_check_interval",
+        "t": "Name"
+      },
+      "deadlock_timeout": {
+        "id": "deadlock_timeout",
+        "t": "Name"
+      },
+      "default_statistics_target": {
+        "id": "default_statistics_target",
+        "t": "Name"
+      },
+      "effective_cache_size_bytes": {
+        "id": "effective_cache_size_bytes",
+        "t": "Name"
+      },
+      "effective_io_concurrency": {
+        "id": "effective_io_concurrency",
+        "t": "Name"
+      },
+      "hash_mem_multiplier": {
+        "id": "hash_mem_multiplier",
+        "t": "Name"
+      },
+      "idle_in_transaction_session_timeout": {
+        "id": "idle_in_transaction_session_timeout",
+        "t": "Name"
+      },
+      "idle_session_timeout": {
+        "id": "idle_session_timeout",
+        "t": "Name"
+      },
+      "io_combine_limit_bytes": {
+        "id": "io_combine_limit_bytes",
+        "t": "Name"
+      },
+      "io_max_combine_limit_bytes": {
+        "id": "io_max_combine_limit_bytes",
+        "t": "Name"
+      },
+      "io_workers": {
+        "id": "io_workers",
+        "t": "Name"
+      },
+      "jit": {
+        "id": "jit",
+        "t": "Name"
+      },
+      "jit_above_cost": {
+        "id": "jit_above_cost",
+        "t": "Name"
+      },
+      "jit_inline_above_cost": {
+        "id": "jit_inline_above_cost",
+        "t": "Name"
+      },
+      "jit_optimize_above_cost": {
+        "id": "jit_optimize_above_cost",
+        "t": "Name"
+      },
+      "lock_timeout": {
+        "id": "lock_timeout",
+        "t": "Name"
+      },
+      "log_min_duration_statement": {
+        "id": "log_min_duration_statement",
+        "t": "Name"
+      },
+      "log_statement_sample_rate": {
+        "id": "log_statement_sample_rate",
+        "t": "Name"
+      },
+      "log_transaction_sample_rate": {
+        "id": "log_transaction_sample_rate",
+        "t": "Name"
+      },
+      "logical_decoding_work_mem_bytes": {
+        "id": "logical_decoding_work_mem_bytes",
+        "t": "Name"
+      },
+      "logical_worker_budget": {
+        "id": "logical_worker_budget",
+        "t": "Name"
+      },
+      "maintenance_io_concurrency": {
+        "id": "maintenance_io_concurrency",
+        "t": "Name"
+      },
+      "maintenance_work_mem_bytes": {
+        "id": "maintenance_work_mem_bytes",
+        "t": "Name"
+      },
+      "max(1, min(5, int(connection_lock_target * 0.02)))": {
+        "args": [
+          {
+            "k": "int",
+            "t": "Const",
+            "v": 1
+          },
+          {
+            "args": [
+              {
+                "k": "int",
+                "t": "Const",
+                "v": 5
+              },
+              {
+                "args": [
+                  {
+                    "left": {
+                      "id": "connection_lock_target",
+                      "t": "Name"
+                    },
+                    "op": "Mult",
+                    "right": {
+                      "k": "float",
+                      "t": "Const",
+                      "v": 0.02
+                    },
+                    "t": "BinOp"
+                  }
+                ],
+                "func": {
+                  "id": "int",
+                  "t": "Name"
+                },
+                "keywords": [],
+                "t": "Call"
+              }
+            ],
+            "func": {
+              "id": "min",
+              "t": "Name"
+            },
+            "keywords": [],
+            "t": "Call"
+          }
+        ],
+        "func": {
+          "id": "max",
+          "t": "Name"
+        },
+        "keywords": [],
+        "t": "Call"
+      },
+      "max(3, min(10, int(connection_lock_target * 0.03)))": {
+        "args": [
+          {
+            "k": "int",
+            "t": "Const",
+            "v": 3
+          },
+          {
+            "args": [
+              {
+                "k": "int",
+                "t": "Const",
+                "v": 10
+              },
+              {
+                "args": [
+                  {
+                    "left": {
+                      "id": "connection_lock_target",
+                      "t": "Name"
+                    },
+                    "op": "Mult",
+                    "right": {
+                      "k": "float",
+                      "t": "Const",
+                      "v": 0.03
+                    },
+                    "t": "BinOp"
+                  }
+                ],
+                "func": {
+                  "id": "int",
+                  "t": "Name"
+                },
+                "keywords": [],
+                "t": "Call"
+              }
+            ],
+            "func": {
+              "id": "min",
+              "t": "Name"
+            },
+            "keywords": [],
+            "t": "Call"
+          }
+        ],
+        "func": {
+          "id": "max",
+          "t": "Name"
+        },
+        "keywords": [],
+        "t": "Call"
+      },
+      "max_connections_value": {
+        "id": "max_connections_value",
+        "t": "Name"
+      },
+      "max_locks_per_transaction": {
+        "id": "max_locks_per_transaction",
+        "t": "Name"
+      },
+      "max_pred_locks_per_page": {
+        "id": "max_pred_locks_per_page",
+        "t": "Name"
+      },
+      "max_pred_locks_per_relation": {
+        "id": "max_pred_locks_per_relation",
+        "t": "Name"
+      },
+      "max_pred_locks_per_transaction": {
+        "id": "max_pred_locks_per_transaction",
+        "t": "Name"
+      },
+      "max_slot_wal_keep_size_bytes": {
+        "id": "max_slot_wal_keep_size_bytes",
+        "t": "Name"
+      },
+      "max_standby_streaming_delay": {
+        "id": "max_standby_streaming_delay",
+        "t": "Name"
+      },
+      "max_wal_size_bytes": {
+        "id": "max_wal_size_bytes",
+        "t": "Name"
+      },
+      "min_parallel_index_scan_size": {
+        "id": "min_parallel_index_scan_size",
+        "t": "Name"
+      },
+      "min_parallel_table_scan_size": {
+        "id": "min_parallel_table_scan_size",
+        "t": "Name"
+      },
+      "min_wal_size_bytes": {
+        "id": "min_wal_size_bytes",
+        "t": "Name"
+      },
+      "parallel_apply_workers": {
+        "id": "parallel_apply_workers",
+        "t": "Name"
+      },
+      "parallel_maintenance_workers": {
+        "id": "parallel_maintenance_workers",
+        "t": "Name"
+      },
+      "parallel_setup_cost": {
+        "id": "parallel_setup_cost",
+        "t": "Name"
+      },
+      "parallel_tuple_cost": {
+        "id": "parallel_tuple_cost",
+        "t": "Name"
+      },
+      "parallel_worker_budget": {
+        "id": "parallel_worker_budget",
+        "t": "Name"
+      },
+      "parallel_workers_per_gather": {
+        "id": "parallel_workers_per_gather",
+        "t": "Name"
+      },
+      "profile_1c_statistics_target": {
+        "id": "profile_1c_statistics_target",
+        "t": "Name"
+      },
+      "profile_backend_statistics_target": {
+        "id": "profile_backend_statistics_target",
+        "t": "Name"
+      },
+      "random_page_cost": {
+        "id": "random_page_cost",
+        "t": "Name"
+      },
+      "replication_network_timeout if replication_enabled else '0'": {
+        "body": {
+          "id": "replication_network_timeout",
+          "t": "Name"
+        },
+        "orelse": {
+          "k": "str",
+          "t": "Const",
+          "v": "0"
+        },
+        "t": "IfExp",
+        "test": {
+          "id": "replication_enabled",
+          "t": "Name"
+        }
+      },
+      "replication_slot_budget": {
+        "id": "replication_slot_budget",
+        "t": "Name"
+      },
+      "shared_buffers_bytes": {
+        "id": "shared_buffers_bytes",
+        "t": "Name"
+      },
+      "shared_preload_libraries_value": {
+        "id": "shared_preload_libraries_value",
+        "t": "Name"
+      },
+      "statement_timeout": {
+        "id": "statement_timeout",
+        "t": "Name"
+      },
+      "sync_workers_per_subscription": {
+        "id": "sync_workers_per_subscription",
+        "t": "Name"
+      },
+      "synchronous_commit": {
+        "id": "synchronous_commit",
+        "t": "Name"
+      },
+      "synchronous_standby_names": {
+        "id": "synchronous_standby_names",
+        "t": "Name"
+      },
+      "tcp_keepalives_count": {
+        "id": "tcp_keepalives_count",
+        "t": "Name"
+      },
+      "tcp_keepalives_idle_seconds": {
+        "id": "tcp_keepalives_idle_seconds",
+        "t": "Name"
+      },
+      "tcp_keepalives_interval_seconds": {
+        "id": "tcp_keepalives_interval_seconds",
+        "t": "Name"
+      },
+      "tcp_user_timeout": {
+        "id": "tcp_user_timeout",
+        "t": "Name"
+      },
+      "transaction_timeout": {
+        "id": "transaction_timeout",
+        "t": "Name"
+      },
+      "vacuum_buffer_usage_limit_bytes": {
+        "id": "vacuum_buffer_usage_limit_bytes",
+        "t": "Name"
+      },
+      "wal_keep_bytes": {
+        "id": "wal_keep_bytes",
+        "t": "Name"
+      },
+      "wal_keep_segments": {
+        "id": "wal_keep_segments",
+        "t": "Name"
+      },
+      "wal_level": {
+        "id": "wal_level",
+        "t": "Name"
+      },
+      "wal_sender_budget": {
+        "id": "wal_sender_budget",
+        "t": "Name"
+      },
+      "worker_process_budget": {
+        "id": "worker_process_budget",
+        "t": "Name"
+      }
+    },
+    "extensions": {
+      "mandatory_common": [
+        "auto_explain",
+        "pg_stat_statements"
+      ],
+      "preload_order": [
+        "pg_stat_statements",
+        "auto_explain",
+        "pg_store_plans",
+        "online_analyze",
+        "plantuner"
+      ],
+      "profile_dependencies": {
+        "ext_perf": [],
+        "profile_1c": [
+          "auto_explain",
+          "online_analyze",
+          "pg_stat_statements",
+          "pg_store_plans",
+          "plantuner"
+        ],
+        "profile_backend_common": [
+          "auto_explain",
+          "online_analyze",
+          "pg_stat_statements",
+          "pg_store_plans"
+        ],
+        "profile_backend_perf": []
+      },
+      "specs": {
+        "auto_explain": {
+          "provider": "postgresql-contrib",
+          "settings_validation": "pg_settings_snapshot",
+          "supported_versions": [
+            "9.6",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        },
+        "online_analyze": {
+          "provider": "external",
+          "settings_validation": "caller_inventory",
+          "supported_versions": [
+            "9.6",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        },
+        "pg_stat_statements": {
+          "provider": "postgresql-contrib",
+          "settings_validation": "pg_settings_snapshot",
+          "supported_versions": [
+            "9.6",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        },
+        "pg_store_plans": {
+          "provider": "external",
+          "settings_validation": "caller_inventory",
+          "supported_versions": [
+            "9.6",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        },
+        "plantuner": {
+          "provider": "external",
+          "settings_validation": "caller_inventory",
+          "supported_versions": [
+            "9.6",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18"
+          ]
+        }
+      }
+    },
+    "known_versions": [
+      "9.6",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18"
+    ],
+    "profiles": {
+      "ext_perf": {
+        "description": "Write-intensive workload overrides that preserve global safety budgets.",
+        "exclusive": false,
+        "supported_versions": [
+          "9.6",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18"
+        ]
+      },
+      "profile_1c": {
+        "description": null,
+        "exclusive": true,
+        "supported_versions": [
+          "9.6",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18"
+        ]
+      },
+      "profile_backend_common": {
+        "description": "Core safety/compatibility settings for backend workloads.",
+        "exclusive": false,
+        "supported_versions": [
+          "9.6",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18"
+        ]
+      },
+      "profile_backend_perf": {
+        "description": "Backend workload overrides for the unified safety-first model.",
+        "exclusive": false,
+        "supported_versions": [
+          "9.6",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18"
+        ]
+      }
+    },
+    "restart_required_settings": [
+      "autovacuum_freeze_max_age",
+      "autovacuum_multixact_freeze_max_age",
+      "autovacuum_worker_slots",
+      "hot_standby",
+      "huge_pages",
+      "io_max_concurrency",
+      "io_method",
+      "logging_collector",
+      "max_connections",
+      "max_files_per_process",
+      "max_locks_per_transaction",
+      "max_logical_replication_workers",
+      "max_pred_locks_per_transaction",
+      "max_replication_slots",
+      "max_wal_senders",
+      "max_worker_processes",
+      "shared_buffers",
+      "shared_preload_libraries",
+      "track_activity_query_size",
+      "wal_buffers",
+      "wal_level",
+      "wal_log_hints"
+    ],
+    "rule_key_domain": [
+      "__parent",
+      "alg",
+      "const",
+      "name",
+      "to_unit",
+      "unit_postfix"
+    ],
+    "rule_sets": {
+      "common": {
+        "10": [
+          {
+            "__parent": "9.6"
+          }
+        ],
+        "11": [
+          {
+            "__parent": "10"
+          }
+        ],
+        "12": [
+          {
+            "__parent": "11"
+          },
+          {
+            "const": "log",
+            "name": "auto_explain.log_level"
+          },
+          {
+            "const": "off",
+            "name": "auto_explain.log_settings"
+          },
+          {
+            "alg": "log_transaction_sample_rate",
+            "name": "log_transaction_sample_rate",
+            "to_unit": "as_is"
+          }
+        ],
+        "13": [
+          {
+            "__parent": "12"
+          },
+          {
+            "const": "on",
+            "name": "auto_explain.log_wal"
+          },
+          {
+            "const": "off",
+            "name": "pg_stat_statements.track_planning"
+          },
+          {
+            "const": "1s",
+            "name": "log_min_duration_sample"
+          },
+          {
+            "alg": "log_statement_sample_rate",
+            "name": "log_statement_sample_rate",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "0",
+            "name": "log_parameter_max_length"
+          },
+          {
+            "const": "0",
+            "name": "log_parameter_max_length_on_error"
+          }
+        ],
+        "14": [
+          {
+            "__parent": "13"
+          },
+          {
+            "const": "auto",
+            "name": "compute_query_id"
+          },
+          {
+            "const": "on",
+            "name": "track_wal_io_timing"
+          },
+          {
+            "alg": "'on' if replication_enabled else 'off'",
+            "name": "log_recovery_conflict_waits",
+            "to_unit": "as_is"
+          }
+        ],
+        "15": [
+          {
+            "__parent": "14"
+          }
+        ],
+        "16": [
+          {
+            "__parent": "15"
+          },
+          {
+            "const": "0",
+            "name": "auto_explain.log_parameter_max_length"
+          }
+        ],
+        "17": [
+          {
+            "__parent": "16"
+          }
+        ],
+        "18": [
+          {
+            "__parent": "17"
+          }
+        ],
+        "9.6": [
+          {
+            "alg": "shared_preload_libraries_value",
+            "name": "shared_preload_libraries",
+            "to_unit": "quote"
+          },
+          {
+            "alg": "auto_explain_log_min_duration",
+            "name": "auto_explain.log_min_duration",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "on",
+            "name": "auto_explain.log_analyze"
+          },
+          {
+            "const": "off",
+            "name": "auto_explain.log_verbose"
+          },
+          {
+            "const": "on",
+            "name": "auto_explain.log_buffers"
+          },
+          {
+            "const": "text",
+            "name": "auto_explain.log_format"
+          },
+          {
+            "const": "off",
+            "name": "auto_explain.log_nested_statements"
+          },
+          {
+            "const": "off",
+            "name": "auto_explain.log_timing"
+          },
+          {
+            "const": "off",
+            "name": "auto_explain.log_triggers"
+          },
+          {
+            "alg": "auto_explain_sample_rate",
+            "name": "auto_explain.sample_rate",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "5000",
+            "name": "pg_stat_statements.max"
+          },
+          {
+            "const": "top",
+            "name": "pg_stat_statements.track"
+          },
+          {
+            "const": "on",
+            "name": "pg_stat_statements.save"
+          },
+          {
+            "const": "on",
+            "name": "pg_stat_statements.track_utility"
+          },
+          {
+            "const": "on",
+            "name": "logging_collector"
+          },
+          {
+            "const": "'csvlog'",
+            "name": "log_destination"
+          },
+          {
+            "const": "'pg_log'",
+            "name": "log_directory"
+          },
+          {
+            "const": "'postgresql-%Y-%m-%d_%H%M%S.log'",
+            "name": "log_filename"
+          },
+          {
+            "const": "384",
+            "name": "log_file_mode"
+          },
+          {
+            "const": "on",
+            "name": "log_truncate_on_rotation"
+          },
+          {
+            "const": "1d",
+            "name": "log_rotation_age"
+          },
+          {
+            "const": "256MB",
+            "name": "log_rotation_size"
+          },
+          {
+            "const": "warning",
+            "name": "log_min_messages"
+          },
+          {
+            "const": "error",
+            "name": "log_min_error_statement"
+          },
+          {
+            "alg": "log_min_duration_statement",
+            "name": "log_min_duration_statement",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "off",
+            "name": "log_duration"
+          },
+          {
+            "const": "'ddl'",
+            "name": "log_statement"
+          },
+          {
+            "const": "off",
+            "name": "log_connections"
+          },
+          {
+            "const": "off",
+            "name": "log_disconnections"
+          },
+          {
+            "const": "off",
+            "name": "log_hostname"
+          },
+          {
+            "const": "on",
+            "name": "log_lock_waits"
+          },
+          {
+            "const": "10MB",
+            "name": "log_temp_files"
+          },
+          {
+            "const": "on",
+            "name": "log_checkpoints"
+          },
+          {
+            "const": "5s",
+            "name": "log_autovacuum_min_duration"
+          },
+          {
+            "const": "'%m [%p] db=%d,user=%u,app=%a,client=%r '",
+            "name": "log_line_prefix"
+          },
+          {
+            "const": "on",
+            "name": "track_activities"
+          },
+          {
+            "const": "on",
+            "name": "track_counts"
+          },
+          {
+            "const": "on",
+            "name": "track_io_timing"
+          },
+          {
+            "const": "pl",
+            "name": "track_functions"
+          },
+          {
+            "const": "4096",
+            "name": "track_activity_query_size"
+          }
+        ]
+      },
+      "common_profiles": {
+        "profile_1c": {
+          "10": [
+            {
+              "__parent": "9.6"
+            }
+          ],
+          "11": [
+            {
+              "__parent": "10"
+            }
+          ],
+          "12": [
+            {
+              "__parent": "11"
+            }
+          ],
+          "13": [
+            {
+              "__parent": "12"
+            }
+          ],
+          "14": [
+            {
+              "__parent": "13"
+            }
+          ],
+          "15": [
+            {
+              "__parent": "14"
+            }
+          ],
+          "16": [
+            {
+              "__parent": "15"
+            }
+          ],
+          "17": [
+            {
+              "__parent": "16"
+            }
+          ],
+          "18": [
+            {
+              "__parent": "17"
+            }
+          ],
+          "9.6": [
+            {
+              "const": "5s",
+              "name": "auto_explain.log_min_duration"
+            },
+            {
+              "const": "off",
+              "name": "online_analyze.enable"
+            },
+            {
+              "const": "off",
+              "name": "online_analyze.verbose"
+            },
+            {
+              "const": "0.1",
+              "name": "online_analyze.scale_factor"
+            },
+            {
+              "const": "50",
+              "name": "online_analyze.threshold"
+            },
+            {
+              "const": "on",
+              "name": "online_analyze.local_tracking"
+            },
+            {
+              "const": "10000",
+              "name": "online_analyze.min_interval"
+            },
+            {
+              "const": "temporary",
+              "name": "online_analyze.table_type"
+            },
+            {
+              "const": "15000",
+              "name": "pg_store_plans.max"
+            },
+            {
+              "const": "top",
+              "name": "pg_store_plans.track"
+            },
+            {
+              "const": "15000",
+              "name": "pg_store_plans.max_plan_length"
+            },
+            {
+              "const": "raw",
+              "name": "pg_store_plans.plan_format"
+            },
+            {
+              "const": "3000",
+              "name": "pg_store_plans.min_duration"
+            },
+            {
+              "const": "on",
+              "name": "pg_store_plans.log_analyze"
+            },
+            {
+              "const": "on",
+              "name": "pg_store_plans.log_buffers"
+            },
+            {
+              "const": "on",
+              "name": "plantuner.fix_empty_table"
+            }
+          ]
+        },
+        "profile_backend_common": {
+          "10": [
+            {
+              "__parent": "9.6"
+            }
+          ],
+          "11": [
+            {
+              "__parent": "10"
+            }
+          ],
+          "12": [
+            {
+              "__parent": "11"
+            }
+          ],
+          "13": [
+            {
+              "__parent": "12"
+            }
+          ],
+          "14": [
+            {
+              "__parent": "13"
+            }
+          ],
+          "15": [
+            {
+              "__parent": "14"
+            }
+          ],
+          "16": [
+            {
+              "__parent": "15"
+            }
+          ],
+          "17": [
+            {
+              "__parent": "16"
+            }
+          ],
+          "18": [
+            {
+              "__parent": "17"
+            }
+          ],
+          "9.6": [
+            {
+              "const": "on",
+              "name": "online_analyze.enable"
+            },
+            {
+              "const": "off",
+              "name": "online_analyze.verbose"
+            },
+            {
+              "const": "0.01",
+              "name": "online_analyze.scale_factor"
+            },
+            {
+              "const": "500",
+              "name": "online_analyze.threshold"
+            },
+            {
+              "const": "on",
+              "name": "online_analyze.local_tracking"
+            },
+            {
+              "const": "10000",
+              "name": "online_analyze.min_interval"
+            },
+            {
+              "const": "temporary",
+              "name": "online_analyze.table_type"
+            },
+            {
+              "const": "10000",
+              "name": "pg_store_plans.max"
+            },
+            {
+              "const": "top",
+              "name": "pg_store_plans.track"
+            },
+            {
+              "const": "5000",
+              "name": "pg_store_plans.max_plan_length"
+            },
+            {
+              "const": "raw",
+              "name": "pg_store_plans.plan_format"
+            },
+            {
+              "const": "300",
+              "name": "pg_store_plans.min_duration"
+            },
+            {
+              "const": "on",
+              "name": "pg_store_plans.log_analyze"
+            },
+            {
+              "const": "on",
+              "name": "pg_store_plans.log_buffers"
+            }
+          ]
+        }
+      },
+      "perf": {
+        "10": [
+          {
+            "__parent": "9.6"
+          },
+          {
+            "alg": "deprecated",
+            "name": "min_parallel_relation_size"
+          },
+          {
+            "alg": "min_parallel_table_scan_size",
+            "name": "min_parallel_table_scan_size",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "min_parallel_index_scan_size",
+            "name": "min_parallel_index_scan_size",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "scram-sha-256",
+            "name": "password_encryption"
+          },
+          {
+            "alg": "parallel_worker_budget",
+            "name": "max_parallel_workers",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "logical_worker_budget",
+            "name": "max_logical_replication_workers",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "sync_workers_per_subscription",
+            "name": "max_sync_workers_per_subscription",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "max_pred_locks_per_page",
+            "name": "max_pred_locks_per_page",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "max_pred_locks_per_relation",
+            "name": "max_pred_locks_per_relation",
+            "to_unit": "as_is"
+          }
+        ],
+        "11": [
+          {
+            "__parent": "10"
+          },
+          {
+            "alg": "jit",
+            "name": "jit",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "jit_above_cost",
+            "name": "jit_above_cost",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "jit_inline_above_cost",
+            "name": "jit_inline_above_cost",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "jit_optimize_above_cost",
+            "name": "jit_optimize_above_cost",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "parallel_maintenance_workers",
+            "name": "max_parallel_maintenance_workers",
+            "to_unit": "as_is"
+          }
+        ],
+        "12": [
+          {
+            "__parent": "11"
+          },
+          {
+            "alg": "tcp_user_timeout",
+            "name": "tcp_user_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "TLSv1.2",
+            "name": "ssl_min_protocol_version"
+          }
+        ],
+        "13": [
+          {
+            "__parent": "12"
+          },
+          {
+            "alg": "deprecated",
+            "name": "wal_keep_segments"
+          },
+          {
+            "const": "50",
+            "name": "autovacuum_vacuum_insert_threshold"
+          },
+          {
+            "const": "0.02",
+            "name": "autovacuum_vacuum_insert_scale_factor"
+          },
+          {
+            "alg": "logical_decoding_work_mem_bytes",
+            "name": "logical_decoding_work_mem"
+          },
+          {
+            "alg": "maintenance_io_concurrency",
+            "name": "maintenance_io_concurrency",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "wal_keep_bytes",
+            "name": "wal_keep_size",
+            "to_unit": "MB"
+          },
+          {
+            "alg": "max_slot_wal_keep_size_bytes",
+            "name": "max_slot_wal_keep_size",
+            "to_unit": "MB"
+          },
+          {
+            "alg": "hash_mem_multiplier",
+            "name": "hash_mem_multiplier",
+            "to_unit": "as_is"
+          }
+        ],
+        "14": [
+          {
+            "__parent": "13"
+          },
+          {
+            "alg": "client_connection_check_interval",
+            "name": "client_connection_check_interval",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "pglz",
+            "name": "default_toast_compression"
+          },
+          {
+            "alg": "idle_session_timeout",
+            "name": "idle_session_timeout",
+            "to_unit": "as_is"
+          }
+        ],
+        "15": [
+          {
+            "__parent": "14"
+          },
+          {
+            "alg": "deprecated",
+            "name": "stats_temp_directory"
+          },
+          {
+            "const": "pglz",
+            "name": "wal_compression"
+          }
+        ],
+        "16": [
+          {
+            "__parent": "15"
+          },
+          {
+            "alg": "vacuum_buffer_usage_limit_bytes",
+            "name": "vacuum_buffer_usage_limit"
+          },
+          {
+            "alg": "max(1, min(5, int(connection_lock_target * 0.02)))",
+            "name": "reserved_connections",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "parallel_apply_workers",
+            "name": "max_parallel_apply_workers_per_subscription",
+            "to_unit": "as_is"
+          }
+        ],
+        "17": [
+          {
+            "__parent": "16"
+          },
+          {
+            "alg": "io_combine_limit_bytes",
+            "name": "io_combine_limit"
+          },
+          {
+            "alg": "transaction_timeout",
+            "name": "transaction_timeout",
+            "to_unit": "as_is"
+          }
+        ],
+        "18": [
+          {
+            "__parent": "17"
+          },
+          {
+            "alg": "io_max_combine_limit_bytes",
+            "name": "io_max_combine_limit"
+          },
+          {
+            "alg": "autovacuum_worker_slots",
+            "name": "autovacuum_worker_slots",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "100000",
+            "name": "autovacuum_vacuum_max_threshold"
+          },
+          {
+            "const": "worker",
+            "name": "io_method"
+          },
+          {
+            "alg": "io_workers",
+            "name": "io_workers",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "-1",
+            "name": "io_max_concurrency"
+          },
+          {
+            "alg": "'1d' if replication_slot_budget else '0'",
+            "name": "idle_replication_slot_timeout",
+            "to_unit": "as_is"
+          }
+        ],
+        "9.6": [
+          {
+            "const": "on",
+            "name": "autovacuum"
+          },
+          {
+            "alg": "autovacuum_workers",
+            "name": "autovacuum_max_workers",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "autovacuum_work_mem_bytes",
+            "name": "autovacuum_work_mem"
+          },
+          {
+            "alg": "autovacuum_naptime",
+            "name": "autovacuum_naptime",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "50",
+            "name": "autovacuum_vacuum_threshold"
+          },
+          {
+            "const": "50",
+            "name": "autovacuum_analyze_threshold"
+          },
+          {
+            "alg": "autovacuum_vacuum_scale_factor",
+            "name": "autovacuum_vacuum_scale_factor",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "autovacuum_analyze_scale_factor",
+            "name": "autovacuum_analyze_scale_factor",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "autovacuum_cost_limit",
+            "name": "autovacuum_vacuum_cost_limit",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "autovacuum_cost_limit",
+            "name": "vacuum_cost_limit",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "autovacuum_cost_delay_ms",
+            "name": "autovacuum_vacuum_cost_delay",
+            "unit_postfix": "ms"
+          },
+          {
+            "alg": "autovacuum_cost_delay_ms",
+            "name": "vacuum_cost_delay",
+            "unit_postfix": "ms"
+          },
+          {
+            "const": "200000000",
+            "name": "autovacuum_freeze_max_age"
+          },
+          {
+            "const": "400000000",
+            "name": "autovacuum_multixact_freeze_max_age"
+          },
+          {
+            "alg": "shared_buffers_bytes",
+            "name": "shared_buffers"
+          },
+          {
+            "alg": "max_connections_value",
+            "name": "max_connections",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "1000",
+            "name": "max_files_per_process"
+          },
+          {
+            "alg": "max(3, min(10, int(connection_lock_target * 0.03)))",
+            "name": "superuser_reserved_connections",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "calc_client_mem_values(max_connections_value, 0.1)[0]",
+            "name": "work_mem"
+          },
+          {
+            "alg": "calc_client_mem_values(max_connections_value, 0.1)[1]",
+            "name": "temp_buffers"
+          },
+          {
+            "alg": "maintenance_work_mem_bytes",
+            "name": "maintenance_work_mem"
+          },
+          {
+            "const": "on",
+            "name": "password_encryption"
+          },
+          {
+            "alg": "authentication_timeout",
+            "name": "authentication_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "tcp_keepalives_idle_seconds",
+            "name": "tcp_keepalives_idle",
+            "unit_postfix": "s"
+          },
+          {
+            "alg": "tcp_keepalives_interval_seconds",
+            "name": "tcp_keepalives_interval",
+            "unit_postfix": "s"
+          },
+          {
+            "alg": "tcp_keepalives_count",
+            "name": "tcp_keepalives_count",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "wal_level",
+            "name": "wal_level",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "on",
+            "name": "fsync"
+          },
+          {
+            "const": "on",
+            "name": "full_page_writes"
+          },
+          {
+            "alg": "synchronous_commit",
+            "name": "synchronous_commit",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "synchronous_standby_names",
+            "name": "synchronous_standby_names",
+            "to_unit": "quote"
+          },
+          {
+            "const": "on",
+            "name": "wal_compression"
+          },
+          {
+            "const": "-1",
+            "name": "wal_buffers"
+          },
+          {
+            "const": "200ms",
+            "name": "wal_writer_delay"
+          },
+          {
+            "const": "1MB",
+            "name": "wal_writer_flush_after"
+          },
+          {
+            "alg": "min_wal_size_bytes",
+            "name": "min_wal_size"
+          },
+          {
+            "alg": "max_wal_size_bytes",
+            "name": "max_wal_size"
+          },
+          {
+            "alg": "wal_keep_segments",
+            "name": "wal_keep_segments",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "replication_slot_budget",
+            "name": "max_replication_slots",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "wal_sender_budget",
+            "name": "max_wal_senders",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "replication_network_timeout if replication_enabled else '0'",
+            "name": "wal_sender_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "'on' if pitr_enabled or replication_enabled else 'off'",
+            "name": "wal_log_hints",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "on",
+            "name": "hot_standby"
+          },
+          {
+            "alg": "replication_network_timeout if replication_enabled else '0'",
+            "name": "wal_receiver_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "max_standby_streaming_delay",
+            "name": "max_standby_streaming_delay",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "'10s' if replication_enabled else '0'",
+            "name": "wal_receiver_status_interval",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "off",
+            "name": "hot_standby_feedback"
+          },
+          {
+            "alg": "checkpoint_timeout",
+            "name": "checkpoint_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "0.9",
+            "name": "checkpoint_completion_target"
+          },
+          {
+            "const": "0",
+            "name": "commit_delay"
+          },
+          {
+            "const": "5",
+            "name": "commit_siblings"
+          },
+          {
+            "const": "200ms",
+            "name": "bgwriter_delay"
+          },
+          {
+            "const": "100",
+            "name": "bgwriter_lru_maxpages"
+          },
+          {
+            "const": "2.0",
+            "name": "bgwriter_lru_multiplier"
+          },
+          {
+            "alg": "effective_cache_size_bytes",
+            "name": "effective_cache_size"
+          },
+          {
+            "alg": "default_statistics_target",
+            "name": "default_statistics_target",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "random_page_cost",
+            "name": "random_page_cost",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "1",
+            "name": "seq_page_cost"
+          },
+          {
+            "alg": "effective_io_concurrency",
+            "name": "effective_io_concurrency",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "parallel_setup_cost",
+            "name": "parallel_setup_cost",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "parallel_tuple_cost",
+            "name": "parallel_tuple_cost",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "min_parallel_table_scan_size",
+            "name": "min_parallel_relation_size",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "worker_process_budget",
+            "name": "max_worker_processes",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "parallel_workers_per_gather",
+            "name": "max_parallel_workers_per_gather",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "max_locks_per_transaction",
+            "name": "max_locks_per_transaction",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "max_pred_locks_per_transaction",
+            "name": "max_pred_locks_per_transaction",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "lock_timeout",
+            "name": "lock_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "deadlock_timeout",
+            "name": "deadlock_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "statement_timeout",
+            "name": "statement_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "alg": "idle_in_transaction_session_timeout",
+            "name": "idle_in_transaction_session_timeout",
+            "to_unit": "as_is"
+          },
+          {
+            "const": "'pg_stat_tmp'",
+            "name": "stats_temp_directory"
+          }
+        ]
+      },
+      "profiles": {
+        "ext_perf": {
+          "10": [
+            {
+              "__parent": "9.6"
+            }
+          ],
+          "11": [
+            {
+              "__parent": "10"
+            }
+          ],
+          "12": [
+            {
+              "__parent": "11"
+            }
+          ],
+          "13": [
+            {
+              "__parent": "12"
+            }
+          ],
+          "14": [
+            {
+              "__parent": "13"
+            }
+          ],
+          "15": [
+            {
+              "__parent": "14"
+            }
+          ],
+          "16": [
+            {
+              "__parent": "15"
+            }
+          ],
+          "17": [
+            {
+              "__parent": "16"
+            }
+          ],
+          "18": [
+            {
+              "__parent": "17"
+            }
+          ],
+          "9.6": [
+            {
+              "const": "15s",
+              "name": "autovacuum_naptime"
+            },
+            {
+              "const": "0.01",
+              "name": "autovacuum_vacuum_scale_factor"
+            },
+            {
+              "const": "0.005",
+              "name": "autovacuum_analyze_scale_factor"
+            },
+            {
+              "alg": "autovacuum_cost_limit",
+              "name": "autovacuum_vacuum_cost_limit",
+              "to_unit": "as_is"
+            },
+            {
+              "alg": "autovacuum_cost_limit",
+              "name": "vacuum_cost_limit",
+              "to_unit": "as_is"
+            },
+            {
+              "alg": "parallel_workers_per_gather",
+              "name": "max_parallel_workers_per_gather",
+              "to_unit": "as_is"
+            }
+          ]
+        },
+        "profile_1c": {
+          "10": [
+            {
+              "__parent": "9.6"
+            },
+            {
+              "alg": "parallel_worker_budget",
+              "name": "max_parallel_workers",
+              "to_unit": "as_is"
+            }
+          ],
+          "11": [
+            {
+              "__parent": "10"
+            },
+            {
+              "const": "off",
+              "name": "jit"
+            }
+          ],
+          "12": [
+            {
+              "__parent": "11"
+            }
+          ],
+          "13": [
+            {
+              "__parent": "12"
+            }
+          ],
+          "14": [
+            {
+              "__parent": "13"
+            }
+          ],
+          "15": [
+            {
+              "__parent": "14"
+            }
+          ],
+          "16": [
+            {
+              "__parent": "15"
+            }
+          ],
+          "17": [
+            {
+              "__parent": "16"
+            }
+          ],
+          "18": [
+            {
+              "__parent": "17"
+            }
+          ],
+          "9.6": [
+            {
+              "const": "20s",
+              "name": "autovacuum_naptime"
+            },
+            {
+              "const": "2ms",
+              "name": "autovacuum_vacuum_cost_delay"
+            },
+            {
+              "const": "20",
+              "name": "from_collapse_limit"
+            },
+            {
+              "const": "20",
+              "name": "join_collapse_limit"
+            },
+            {
+              "const": "off",
+              "name": "escape_string_warning"
+            },
+            {
+              "const": "off",
+              "name": "standard_conforming_strings"
+            },
+            {
+              "alg": "calc_connection_limit(1000, min_conns)",
+              "name": "max_connections"
+            },
+            {
+              "const": "8000",
+              "name": "max_files_per_process"
+            },
+            {
+              "alg": "calc_client_mem_values(max_connections, 0.5)[0]",
+              "name": "work_mem"
+            },
+            {
+              "alg": "calc_client_mem_values(max_connections, 0.5)[1]",
+              "name": "temp_buffers"
+            },
+            {
+              "const": "15min",
+              "name": "checkpoint_timeout"
+            },
+            {
+              "const": "0",
+              "name": "commit_delay"
+            },
+            {
+              "const": "20ms",
+              "name": "bgwriter_delay"
+            },
+            {
+              "const": "4",
+              "name": "bgwriter_lru_multiplier"
+            },
+            {
+              "const": "400",
+              "name": "bgwriter_lru_maxpages"
+            },
+            {
+              "const": "0.001",
+              "name": "cpu_operator_cost"
+            },
+            {
+              "alg": "profile_1c_statistics_target",
+              "name": "default_statistics_target",
+              "to_unit": "as_is"
+            },
+            {
+              "const": "off",
+              "name": "enable_mergejoin"
+            },
+            {
+              "const": "on",
+              "name": "geqo"
+            },
+            {
+              "const": "12",
+              "name": "geqo_threshold"
+            },
+            {
+              "const": "0",
+              "name": "max_parallel_workers_per_gather"
+            },
+            {
+              "const": "off",
+              "name": "row_security"
+            },
+            {
+              "const": "off",
+              "name": "ssl"
+            }
+          ]
+        },
+        "profile_backend_common": {
+          "10": [
+            {
+              "__parent": "9.6"
+            }
+          ],
+          "11": [
+            {
+              "__parent": "10"
+            }
+          ],
+          "12": [
+            {
+              "__parent": "11"
+            }
+          ],
+          "13": [
+            {
+              "__parent": "12"
+            }
+          ],
+          "14": [
+            {
+              "__parent": "13"
+            }
+          ],
+          "15": [
+            {
+              "__parent": "14"
+            }
+          ],
+          "16": [
+            {
+              "__parent": "15"
+            }
+          ],
+          "17": [
+            {
+              "__parent": "16"
+            }
+          ],
+          "18": [
+            {
+              "__parent": "17"
+            }
+          ],
+          "9.6": [
+            {
+              "const": "on",
+              "name": "escape_string_warning"
+            },
+            {
+              "const": "on",
+              "name": "standard_conforming_strings"
+            },
+            {
+              "const": "on",
+              "name": "row_security"
+            }
+          ]
+        },
+        "profile_backend_perf": {
+          "10": [],
+          "11": [],
+          "12": [],
+          "13": [],
+          "14": [
+            {
+              "const": "on",
+              "name": "enable_async_append"
+            }
+          ],
+          "15": [
+            {
+              "const": "pglz",
+              "name": "wal_compression"
+            }
+          ],
+          "16": [],
+          "17": [],
+          "18": [],
+          "9.6": [
+            {
+              "const": "15s",
+              "name": "autovacuum_naptime"
+            },
+            {
+              "const": "try",
+              "name": "huge_pages"
+            },
+            {
+              "const": "30s",
+              "name": "checkpoint_warning"
+            },
+            {
+              "alg": "profile_backend_statistics_target",
+              "name": "default_statistics_target",
+              "to_unit": "as_is"
+            },
+            {
+              "alg": "8 if duty_db == DutyDB.FINANCIAL else 8 if duty_db == DutyDB.OLTP else 9 if duty_db == DutyDB.MIXED else 10",
+              "name": "join_collapse_limit",
+              "to_unit": "as_is"
+            },
+            {
+              "alg": "8 if duty_db == DutyDB.FINANCIAL else 8 if duty_db == DutyDB.OLTP else 9 if duty_db == DutyDB.MIXED else 10",
+              "name": "from_collapse_limit",
+              "to_unit": "as_is"
+            },
+            {
+              "const": "on",
+              "name": "geqo"
+            },
+            {
+              "const": "12",
+              "name": "geqo_threshold"
+            },
+            {
+              "alg": "parallel_workers_per_gather",
+              "name": "max_parallel_workers_per_gather",
+              "to_unit": "as_is"
+            }
+          ]
+        }
+      }
+    },
+    "supported_versions": [
+      "9.6",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18"
+    ],
+    "to_unit_domain": [
+      "MB",
+      "as_is",
+      "quote"
+    ],
+    "unit_postfix_domain": [
+      "ms",
+      "s"
+    ]
+  },
+  "payload_digest": "sha256:569a958bdb4f399e79ecffed5673ded40bcea8d84d1ef496e4d16835a43b5fe6",
+  "schema_version": "pg_configurator/web-data-v1"
+}

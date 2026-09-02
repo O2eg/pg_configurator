@@ -1,0 +1,38 @@
+{
+  "name": "pg-configurator-web",
+  "private": true,
+  "version": "0.10.0",
+  "description": "Browser and Node port of the pg-configurator calculation; the Python package in this repository is the reference implementation",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./web/index.mjs",
+  "exports": {
+    ".": "./web/index.mjs",
+    "./data/rules.json": "./web/data/rules.json",
+    "./data/pg_settings.json": "./web/data/pg_settings.json",
+    "./data/input-schema.json": "./web/data/input-schema.json",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "pg-configurator-js": "./web/bin/pg-configurator.mjs"
+  },
+  "files": [
+    "web/index.mjs",
+    "web/src/cli-args.js",
+    "web/src/configurator.js",
+    "web/src/make-conf.js",
+    "web/src/rule-eval.js",
+    "web/src/units.js",
+    "web/data/",
+    "web/bin/",
+    "NOTICE"
+  ],
+  "scripts": {
+    "test": "node --test web/test/*.test.mjs",
+    "cli": "node web/bin/pg-configurator.mjs",
+    "build": "python3 web/build.py"
+  }
+}

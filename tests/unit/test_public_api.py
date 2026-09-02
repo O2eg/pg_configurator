@@ -19,10 +19,10 @@ class TestPublicAPI(unittest.TestCase):
         first = PGConfiguratorResult()
         second = PGConfiguratorResult()
 
-        first.warnings.append("first")
+        first.advisories.append({"code": "first"})
         first.result_data = {"value": 1}
 
-        self.assertEqual([], second.warnings)
+        self.assertEqual([], second.advisories)
         self.assertIsNone(second.result_data)
 
     def test_version_returns_result_contract(self):
@@ -47,7 +47,7 @@ class TestPublicAPI(unittest.TestCase):
             )
 
         artifact = json.loads(stdout.getvalue())
-        self.assertEqual("pg_configurator/v1", artifact["schema_version"])
+        self.assertEqual("pg_configurator/v2", artifact["schema_version"])
         self.assertEqual(artifact, result.artifact)
         self.assertIsInstance(
             artifact["parameters"]["max_connections"]["raw_value"],
@@ -71,7 +71,7 @@ class TestPublicAPI(unittest.TestCase):
             all(extension["availability"] == "unverified" for extension in artifact["extensions"])
         )
 
-    def test_profile_warnings_and_caller_extension_inventory(self):
+    def test_profile_advisories_and_caller_extension_inventory(self):
         configurator = PGConfigurator(self.args, [])
         required_extensions = (
             "auto_explain,online_analyze,pg_stat_statements,pg_store_plans,plantuner"
@@ -85,10 +85,12 @@ class TestPublicAPI(unittest.TestCase):
         )
         artifact = configurator.build_artifact(config)
 
-        self.assertTrue(any("disables SSL" in warning for warning in artifact["warnings"]))
-        self.assertTrue(
-            any("caller-declared, not live-verified" in warning for warning in artifact["warnings"])
-        )
+        codes = {item["code"]: item for item in artifact["advisories"]}
+        self.assertEqual("warning", codes["profile_1c_ssl_disabled"]["severity"])
+        self.assertEqual("ssl", codes["profile_1c_ssl_disabled"]["setting"])
+        self.assertEqual("off", codes["profile_1c_ssl_disabled"]["actual"])
+        self.assertEqual("assumption", codes["extension_inventory_not_verified"]["severity"])
+        self.assertNotIn("preload_modules_not_declared", codes)
         self.assertTrue(any(item["to"] == "profile_1c" for item in artifact["overrides"]))
         self.assertTrue(
             all(
@@ -130,7 +132,7 @@ class TestPublicAPI(unittest.TestCase):
             self.assertEqual(1, len(backups))
             self.assertEqual("original", backups[0].read_text(encoding="utf-8"))
             self.assertEqual(
-                "pg_configurator/v1",
+                "pg_configurator/v2",
                 json.loads(target.read_text(encoding="utf-8"))["schema_version"],
             )
 

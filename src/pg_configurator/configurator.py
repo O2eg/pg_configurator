@@ -38,6 +38,31 @@ from pg_configurator.orchestration import artifact_hash, capabilities, envelope
 from pg_configurator.rule_engine import RuleEvaluationError, RuleEvaluator
 from pg_configurator.version import __version__
 
+# What this tool has to say about a configuration comes in three kinds, and
+# reporting all of it as "warning" is what makes a reader stop reading. A
+# `warning` is a real risk or a conflict in the result. An `assumption` is a
+# premise the calculation rests on and could not check. An `info` is a boundary
+# of what the tool does, or an explanation of a choice it made.
+ADVISORY_SEVERITIES = ("warning", "assumption", "info")
+
+
+def advisory(code, severity, message, *, setting=None, actual=None):
+    """One finding about the configuration that was actually generated."""
+    if severity not in ADVISORY_SEVERITIES:
+        raise ValueError(f"Unknown advisory severity: {severity}")
+    return {
+        "code": code,
+        "severity": severity,
+        "setting": setting,
+        "actual": None if actual is None else str(actual),
+        "message": message,
+    }
+
+
+def sort_advisories(advisories):
+    """Severest first, emission order kept inside each severity."""
+    return sorted(advisories, key=lambda item: ADVISORY_SEVERITIES.index(item["severity"]))
+
 
 class UnitConverter:
     #            kilobytes         megabytes        gigabytes       terabytes
@@ -226,6 +251,43 @@ class PGConfigurator:
         "hot_standby",
     }
 
+    # The three main memory budgets are bounded one by one and together.
+    # shared_buffers may claim the largest single share: it is one allocation
+    # made once at startup, while the other two are multiplied by the number of
+    # sessions doing work at the same time.
+    #
+    # The total stops below the 90% ceiling the computed envelope is held to
+    # further down, because that envelope counts what these three parts do not:
+    # the lock tables and the per-backend reserve. Allowing the declared parts
+    # to reach 90% would let a budget pass this check and then be refused by the
+    # envelope with a harder message to act on.
+    memory_budget_part_limits = {
+        "shared_buffers_part": 0.8,
+        "client_mem_part": 0.4,
+        "maintenance_mem_part": 0.4,
+    }
+    memory_budget_total_limit = 0.85
+
+    # End-of-life dates from the PostgreSQL versioning policy
+    # (https://www.postgresql.org/support/versioning/), compared against
+    # support_horizon rather than the wall clock. artifact_hash deliberately
+    # excludes generated_at so that the same inputs hash the same on any day,
+    # and an advisory that appeared overnight would break that. A release moves
+    # the horizon; because every version is in the table, none can be forgotten.
+    postgresql_eol_dates = {
+        "9.6": "2021-11-11",
+        "10": "2022-11-10",
+        "11": "2023-11-09",
+        "12": "2024-11-21",
+        "13": "2025-11-13",
+        "14": "2026-11-12",
+        "15": "2027-11-11",
+        "16": "2028-11-09",
+        "17": "2029-11-08",
+        "18": "2030-11-14",
+    }
+    support_horizon = "2026-09-03"
+
     current_dir = os.path.dirname(os.path.realpath(__file__))
     output_dir = os.getcwd()
     args = {}
@@ -240,7 +302,7 @@ class PGConfigurator:
         self.last_inputs = {}
         self.last_overrides = []
         self.last_parameter_details = {}
-        self.last_warnings = []
+        self.last_advisories = []
         if (
             not (
                 args.output_file_name.find("""/""") > -1
@@ -343,17 +405,23 @@ class PGConfigurator:
         if not math.isclose(sum(values.values()), 1.0, rel_tol=0, abs_tol=1e-9):
             raise ValueError(f"{group_name} must sum to 1.0")
 
-    @staticmethod
-    def _validate_memory_budget_parts(values):
+    @classmethod
+    def _validate_memory_budget_parts(cls, values):
         for name, value in values.items():
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"{name} must be a number")
-            if value <= 0 or value > 0.4:
-                raise ValueError(f"{name} must be greater than 0 and not greater than 0.4")
+            limit = cls.memory_budget_part_limits[name]
+            if value <= 0 or value > limit:
+                raise ValueError(f"{name} must be greater than 0 and not greater than {limit}")
         allocated = sum(values.values())
-        if allocated > 0.75:
+        limit = cls.memory_budget_total_limit
+        # Budgets are written as decimals but summed in binary: 0.8 + 0.03 + 0.02
+        # is 0.8500000000000001, and refusing that would report arithmetic noise
+        # as an overflow. The fraction groups above tolerate the same noise.
+        if allocated > limit and not math.isclose(allocated, limit, rel_tol=0, abs_tol=1e-9):
             raise ValueError(
-                f"Main memory budgets must use at most 75% of available RAM; got {allocated:.2%}"
+                f"Main memory budgets must use at most {limit:.0%} of available RAM; "
+                f"got {allocated:.2%}"
             )
 
     @staticmethod
@@ -554,7 +622,7 @@ class PGConfigurator:
         self,
         cpu_cores,
         ram_value,
-        disk_type=DiskType.SAS,
+        disk_type=DiskType.SSD,
         duty_db=DutyDB.MIXED,
         replication_enabled=None,
         replication_mode=None,
@@ -886,7 +954,6 @@ class PGConfigurator:
         maint_max_conns = int(
             min(max(min_maint_conns, math.ceil(cpu_threads / 8)), max_maint_conns)
         )
-        active_query_sessions = min(max_conns, max(4, cpu_threads * 2))
 
         default_disk_scores = {
             DiskType.SATA: 15,
@@ -910,7 +977,6 @@ class PGConfigurator:
             return (system_scores / 100) * (v_max - v_min) + v_min
 
         max_connections_value = calc_connection_scale(min_conns, max_conns)
-        active_query_sessions = min(max_connections_value, max(4, cpu_threads * 2))
         shared_buffers_bytes = total_ram_in_bytes * shared_buffers_part
         maintenance_budget_bytes = total_ram_in_bytes * maintenance_mem_part
         maintenance_work_mem_bytes = min(
@@ -1064,20 +1130,30 @@ class PGConfigurator:
             max(max_wal_size_bytes / 4, wal_segment_size_in_bytes * 2),
             4 * gibibyte,
         )
-        wal_keep_bytes = (
-            min(
-                max(
-                    peak_wal_rate_in_bytes * replica_outage_tolerance,
-                    512 * mebibyte,
+        # Retention is decided in whole segments and only then in bytes, because
+        # that is how PostgreSQL spends the disk: a byte request is converted
+        # down to segments, and the segment currently being written is held on
+        # top of whatever was asked for. Rounding the request up and calling the
+        # result capped at 40% put 512 MiB on a disk whose ceiling was 409.6.
+        # wal_disk_budget is checked above to hold at least eight segments, so
+        # the ceiling below is never under three and the retained count never
+        # under one.
+        desired_wal_keep_bytes = peak_wal_rate_in_bytes * replica_outage_tolerance
+        wal_keep_budget_bytes = wal_disk_budget_in_bytes * 0.4
+        wal_keep_segments = (
+            max(
+                1,
+                min(
+                    math.ceil(
+                        max(desired_wal_keep_bytes, 512 * mebibyte) / wal_segment_size_in_bytes
+                    ),
+                    int(wal_keep_budget_bytes // wal_segment_size_in_bytes) - 1,
                 ),
-                wal_disk_budget_in_bytes * 0.4,
             )
             if replication_enabled
             else 0
         )
-        wal_keep_segments = (
-            math.ceil(wal_keep_bytes / wal_segment_size_in_bytes) if replication_enabled else 0
-        )
+        wal_keep_bytes = wal_keep_segments * wal_segment_size_in_bytes
         max_slot_wal_keep_size_bytes = (
             wal_disk_budget_in_bytes * 0.4 if replication_slot_budget else 0
         )
@@ -1333,102 +1409,6 @@ class PGConfigurator:
         authentication_timeout = "30s"
         deadlock_timeout = "2s" if duty_db == DutyDB.STATISTIC else "1s"
 
-        warnings = []
-        if shared_buffers_part >= 0.35:
-            warnings.append(
-                f"shared_buffers_part={shared_buffers_part} leaves less operating-system cache "
-                "than the recommended default model"
-            )
-        if disk_score is None:
-            warnings.append(
-                f"Storage score is inferred from disk_type={disk_type.value}; "
-                "use disk_score with measured "
-                "IOPS/latency and the complete data/WAL storage topology"
-            )
-        warnings.append(
-            "work_mem is budgeted for "
-            f"{active_query_sessions} active sessions with amplification factor "
-            f"{work_mem_concurrency_factor}; validate this assumption with pg_diag"
-        )
-        desired_wal_keep_bytes = peak_wal_rate_in_bytes * replica_outage_tolerance
-        if replication_enabled and desired_wal_keep_bytes > wal_keep_bytes:
-            warnings.append(
-                "Requested WAL retention exceeds 40% of wal_disk_budget and was capped; "
-                "increase wal_disk_budget or reduce the outage target"
-            )
-        if duty_db == DutyDB.FINANCIAL and not synchronous_standby_names.strip():
-            warnings.append(
-                "Financial duty uses synchronous_commit=on because no "
-                "synchronous_standby_names were supplied; remote durability is not claimed"
-            )
-        if wal_level == "minimal":
-            warnings.append(
-                "wal_level=minimal disables PITR and replication; use only for disposable clusters"
-            )
-        if pg_version in {"9.6", "10", "11", "12", "13"}:
-            warnings.append(
-                f"PostgreSQL {pg_version} is end-of-life; generated output is for legacy/test use"
-            )
-        if pitr_enabled:
-            warnings.append(
-                "pitr_enabled preserves WAL-level capability, but backup/WAL archiving transport "
-                "is deployment-specific and must be configured by pg_stand"
-            )
-        warnings.append(
-            "TCP keepalive and connection-check timeouts are safe baselines; align them with "
-            "load-balancer, firewall, proxy, and client-driver timeouts before apply"
-        )
-        warnings.append(
-            "The workload profile emits instance-wide statement, lock, idle-session, and "
-            "transaction timeouts for reproducible stands; production deployments should "
-            "prefer ALTER ROLE/ALTER DATABASE and preserve a less restrictive DBA role"
-        )
-        if get_major_version(pg_version) >= 10:
-            warnings.append(
-                "password_encryption=scram-sha-256 affects newly stored passwords; verify "
-                "legacy client-driver SCRAM support before rotating credentials"
-            )
-        if pg_version in {"14", "15", "16", "17", "18"}:
-            warnings.append(
-                "idle_session_timeout can surprise connection poolers; verify reconnect "
-                "behaviour or scope this timeout to interactive roles"
-            )
-        if platform == Platform.WINDOWS:
-            warnings.append(
-                "Windows does not expose TCP_KEEPCNT, TCP_USER_TIMEOUT, or PostgreSQL client "
-                "connection polling; their generated values remain 0 (operating-system default)"
-            )
-
-        if database_size_in_bytes is None:
-            warnings.append(
-                "db_size was not supplied; default_statistics_target uses the duty/resource "
-                "baseline without a database-size tier"
-            )
-        if default_statistics_target >= 2500 or (
-            "profile_1c" in selected_profiles and profile_1c_statistics_target >= 2500
-        ):
-            warnings.append(
-                "A high default_statistics_target increases ANALYZE samples and planning "
-                "overhead; validate cardinality estimates and prefer per-column statistics "
-                "for isolated skew"
-            )
-
-        if "profile_1c" in selected_profiles:
-            warnings.extend(
-                [
-                    "profile_1c disables SSL",
-                    "profile_1c disables row_security",
-                    "profile_1c disables standard_conforming_strings",
-                    "profile_1c requests up to 1000 connections and is capped by the memory budget",
-                    "profile_1c raises max_files_per_process; pg_stand must verify the OS "
-                    "file-descriptor limit before apply",
-                    "profile_1c keeps synchronous_commit=on despite performance-oriented "
-                    "1C guidance that permits possible loss of recent transactions",
-                    "profile_1c does not emit patched-PostgreSQL-only GUCs such as "
-                    "enable_temp_memory_catalog without an explicit target-distribution contract",
-                ]
-            )
-
         required_extensions = set(MANDATORY_COMMON_EXTENSIONS)
         for profile in selected_profiles:
             required_extensions.update(self.profile_extensions.get(profile, set()))
@@ -1455,24 +1435,11 @@ class PGConfigurator:
                     str(item).strip() for item in available_extensions if str(item).strip()
                 }
 
-        if required_extensions:
-            if normalized_available_extensions is None:
-                warnings.append(
-                    "Required extensions were not declared available by the caller: {}".format(
-                        ", ".join(sorted(required_extensions))
-                    )
-                )
-            else:
-                missing_extensions = sorted(required_extensions - normalized_available_extensions)
-                if missing_extensions:
-                    raise ValueError(
-                        "Required extensions are unavailable: {}".format(
-                            ", ".join(missing_extensions)
-                        )
-                    )
-                warnings.append(
-                    "Extension availability is caller-declared, not live-verified; pg_stand "
-                    "must check target packages, preloadability, and external GUC compatibility"
+        if required_extensions and normalized_available_extensions is not None:
+            missing_extensions = sorted(required_extensions - normalized_available_extensions)
+            if missing_extensions:
+                raise ValueError(
+                    "Required extensions are unavailable: {}".format(", ".join(missing_extensions))
                 )
 
         shared_preload_libraries_value = ",".join(
@@ -1503,10 +1470,6 @@ class PGConfigurator:
             DutyDB.STATISTIC: 0.01,
         }[duty_db]
         log_min_duration_statement = auto_explain_log_min_duration
-        warnings.append(
-            "CSV logging is enabled with size/time rotation; configure external retention "
-            "for the pg_log directory to enforce a total disk limit"
-        )
 
         # Apply profiles to a per-run copy. Bundled rules must remain immutable
         # because pg_play can calculate several candidate configurations in one process.
@@ -2031,6 +1994,439 @@ class PGConfigurator:
         if memory_envelope_bytes > total_ram_in_bytes * 0.9:
             raise ValueError("Calculated concurrent memory envelope exceeds 90% of available RAM")
 
+        # --- advisories ------------------------------------------------------
+        # Every line below reads config_res, the file this run will actually
+        # emit. Built any earlier they described a draft: profiles had not been
+        # applied yet, so the text could promise synchronous_commit=on for a
+        # cluster whose file says remote_apply, or call a statistics target high
+        # after a profile had already lowered it.
+        def size_text(value):
+            return UnitConverter.size_to(int(value), system=UnitConverter.sys_pg)
+
+        def settings_text(names):
+            return ", ".join(f"{name}={config_res[name]}" for name in names)
+
+        advisories = []
+
+        if shared_buffers_part >= 0.35:
+            advisories.append(
+                advisory(
+                    "shared_buffers_crowds_os_cache",
+                    "warning",
+                    f"shared_buffers_part={shared_buffers_part} gives "
+                    f"shared_buffers={config_res['shared_buffers']}. Past roughly a third of "
+                    "available RAM the same pages tend to be held twice, once here and once in "
+                    "the kernel cache, and the second copy is the one that stops helping. The "
+                    "0.35 threshold is this tool's, not a PostgreSQL limit.",
+                    setting="shared_buffers",
+                    actual=config_res["shared_buffers"],
+                )
+            )
+
+        if disk_score is None:
+            advisories.append(
+                advisory(
+                    "disk_score_inferred",
+                    "assumption",
+                    f"Storage score {disk_scores} was inferred from disk_type="
+                    f"{disk_type.value}; nothing was measured. It sets random_page_cost, "
+                    "effective_io_concurrency, the parallel-scan thresholds and the autovacuum "
+                    "cost limits, so a disk_type that describes the hardware badly moves all of "
+                    "them. Supply disk_score from measured IOPS and latency to replace the "
+                    "guess.",
+                    actual=disk_scores,
+                )
+            )
+
+        # The multiplier the sizing divided by is not always a GUC in the file:
+        # before PostgreSQL 13 there is no hash_mem_multiplier, and hash
+        # aggregation had no spill to disk either, so the same reserve is kept
+        # for a reason the reader cannot look up in the generated conf.
+        hash_budget_text = (
+            f"hash_mem_multiplier={config_res['hash_mem_multiplier']}"
+            if "hash_mem_multiplier" in config_res
+            else f"a factor of {hash_mem_multiplier} for hash operations, which on PostgreSQL "
+            f"{pg_version} have neither a hash_mem_multiplier to declare nor, in hash "
+            "aggregation, a spill to disk when the estimate is wrong"
+        )
+        advisories.append(
+            advisory(
+                "work_mem_budget_assumption",
+                "assumption",
+                f"work_mem={config_res['work_mem']} is the client memory budget divided by "
+                f"{actual_active_sessions} concurrent sessions, "
+                f"work_mem_concurrency_factor={work_mem_concurrency_factor} allocations each, "
+                f"and {hash_budget_text}. All three are assumptions about the workload rather "
+                "than measurements; pg_diag reports what the real figures are.",
+                setting="work_mem",
+                actual=config_res["work_mem"],
+            )
+        )
+
+        if replication_enabled and desired_wal_keep_bytes > wal_keep_bytes:
+            retention_setting = (
+                "wal_keep_size" if "wal_keep_size" in config_res else "wal_keep_segments"
+            )
+            advisories.append(
+                advisory(
+                    "wal_retention_capped",
+                    "warning",
+                    f"Keeping {size_text(desired_wal_keep_bytes)} of WAL for a "
+                    f"{replica_outage_tolerance}s outage would need more than the 40% of "
+                    "wal_disk_budget this tool spends on retention, so "
+                    f"{retention_setting}={config_res[retention_setting]} is what is kept — "
+                    f"{wal_keep_segments} segments, "
+                    f"{size_text(wal_keep_bytes + wal_segment_size_in_bytes)} on disk once the "
+                    "segment being written is counted. A replica absent for longer needs a "
+                    "fresh base backup: raise wal_disk_budget or lower "
+                    "replica_outage_tolerance.",
+                    setting=retention_setting,
+                    actual=config_res[retention_setting],
+                )
+            )
+
+        if duty_db == DutyDB.FINANCIAL and not synchronous_standby_names.strip():
+            advisories.append(
+                advisory(
+                    "financial_duty_without_synchronous_standby",
+                    "info",
+                    "Financial duty asks for the strongest durability on offer, but no "
+                    "synchronous_standby_names were supplied, so "
+                    f"synchronous_commit={config_res['synchronous_commit']} is as far as it "
+                    "goes: a commit is flushed to local disk and nothing remote is promised. "
+                    "Name a standby to get remote_apply.",
+                    setting="synchronous_commit",
+                    actual=config_res["synchronous_commit"],
+                )
+            )
+
+        if config_res["wal_level"] == "minimal":
+            advisories.append(
+                advisory(
+                    "wal_level_minimal",
+                    "info",
+                    "wal_level=minimal follows from asking for neither PITR nor replication. "
+                    "Crash recovery still works and committed transactions still survive a "
+                    "restart; what becomes impossible is point-in-time recovery, streaming a "
+                    "replica, and taking an online base backup. Losing the data directory then "
+                    "means restoring a cold copy.",
+                    setting="wal_level",
+                    actual=config_res["wal_level"],
+                )
+            )
+
+        end_of_life_date = self.postgresql_eol_dates.get(pg_version)
+        horizon_year, horizon_remainder = self.support_horizon.split("-", 1)
+        horizon_next_year = f"{int(horizon_year) + 1}-{horizon_remainder}"
+        if end_of_life_date is not None and end_of_life_date <= self.support_horizon:
+            advisories.append(
+                advisory(
+                    "postgresql_end_of_life",
+                    "warning",
+                    f"PostgreSQL {pg_version} reached end of life on {end_of_life_date}: no "
+                    "further fixes are published for it, security ones included. This output "
+                    "is for legacy and test use.",
+                    actual=end_of_life_date,
+                )
+            )
+        elif end_of_life_date is not None and end_of_life_date <= horizon_next_year:
+            advisories.append(
+                advisory(
+                    "postgresql_end_of_life_approaching",
+                    "info",
+                    f"PostgreSQL {pg_version} reaches end of life on {end_of_life_date}, "
+                    f"within a year of this tool's support horizon of {self.support_horizon}. "
+                    "The major upgrade wants planning before then, not after.",
+                    actual=end_of_life_date,
+                )
+            )
+
+        if pitr_enabled:
+            advisories.append(
+                advisory(
+                    "pitr_transport_not_configured",
+                    "info",
+                    f"pitr_enabled holds wal_level={config_res['wal_level']}, which is the "
+                    "part of point-in-time recovery a configuration file can supply. Base "
+                    "backups, WAL archiving and the restore path are deployment work this tool "
+                    "does not do: pg_stand is one way to arrange it, pgBackRest and barman are "
+                    "others.",
+                    setting="wal_level",
+                    actual=config_res["wal_level"],
+                )
+            )
+
+        network_settings = [
+            name
+            for name in (
+                "tcp_keepalives_idle",
+                "tcp_keepalives_interval",
+                "tcp_keepalives_count",
+                "tcp_user_timeout",
+                "client_connection_check_interval",
+            )
+            if name in config_res
+        ]
+        advisories.append(
+            advisory(
+                "network_timeouts_are_baselines",
+                "info",
+                f"PostgreSQL {pg_version} on {platform.value.lower()} takes "
+                f"{settings_text(network_settings)} from this file. They are baselines: a dead "
+                "connection is noticed only as fast as the slowest layer in front of it allows, "
+                "so align them with the load balancer, firewall, proxy and client-driver "
+                "timeouts before applying.",
+            )
+        )
+
+        workload_timeouts = [
+            name
+            for name in (
+                "statement_timeout",
+                "lock_timeout",
+                "idle_in_transaction_session_timeout",
+                "idle_session_timeout",
+                "transaction_timeout",
+            )
+            if name in config_res
+        ]
+        advisories.append(
+            advisory(
+                "workload_timeouts_are_instance_wide",
+                "info",
+                f"This file sets {settings_text(workload_timeouts)} for the whole instance, "
+                "maintenance and DBA sessions included, which suits a reproducible stand. In "
+                "production the documented practice is ALTER ROLE and ALTER DATABASE, keeping "
+                "one role less restricted so that a long recovery task can still run.",
+            )
+        )
+
+        if config_res.get("password_encryption") == "scram-sha-256":
+            advisories.append(
+                advisory(
+                    "scram_password_encryption",
+                    "info",
+                    "password_encryption=scram-sha-256 applies to passwords stored from now on; "
+                    "existing md5 passwords keep working until they are set again. Check that "
+                    "every client driver in use speaks SCRAM before rotating them.",
+                    setting="password_encryption",
+                    actual=config_res["password_encryption"],
+                )
+            )
+
+        if "idle_session_timeout" in config_res:
+            advisories.append(
+                advisory(
+                    "idle_session_timeout_and_poolers",
+                    "info",
+                    f"idle_session_timeout={config_res['idle_session_timeout']} closes idle "
+                    "sessions, including the ones a connection pooler is holding open on "
+                    "purpose. Verify that the pooler reconnects cleanly, or scope this timeout "
+                    "to interactive roles.",
+                    setting="idle_session_timeout",
+                    actual=config_res["idle_session_timeout"],
+                )
+            )
+
+        if platform == Platform.WINDOWS:
+            # Only settings this version actually emits may be described. Saying
+            # a parameter "remains 0" on a release that has never had it is how
+            # the previous text managed to be wrong on 9.6 through 13.
+            system_default_settings = [
+                name for name in ("tcp_keepalives_count", "tcp_user_timeout") if name in config_res
+            ]
+            windows_text = (
+                "Windows exposes neither TCP_KEEPCNT nor TCP_USER_TIMEOUT, so "
+                f"{settings_text(system_default_settings)} leaves detection of a dead peer to "
+                "the operating-system defaults."
+            )
+            if "client_connection_check_interval" in config_res:
+                windows_text += (
+                    " client_connection_check_interval=0 is not a system default but the check "
+                    "switched off: PostgreSQL implements it only where poll() offers POLLRDHUP, "
+                    "which Windows does not, so a backend keeps running a query for a client "
+                    "that has already gone."
+                )
+            advisories.append(advisory("windows_network_options_unavailable", "info", windows_text))
+
+        if database_size_in_bytes is None:
+            advisories.append(
+                advisory(
+                    "db_size_not_supplied",
+                    "assumption",
+                    "db_size was not supplied, so default_statistics_target="
+                    f"{config_res['default_statistics_target']} comes from duty and hardware "
+                    "alone, with no database-size tier applied.",
+                    setting="default_statistics_target",
+                    actual=config_res["default_statistics_target"],
+                )
+            )
+
+        if int(config_res["default_statistics_target"]) >= 2500:
+            advisories.append(
+                advisory(
+                    "high_statistics_target",
+                    "info",
+                    f"default_statistics_target={config_res['default_statistics_target']} makes "
+                    "ANALYZE read more rows and the planner carry longer histograms, which costs "
+                    "planning time on every query rather than only on the skewed ones. Where the "
+                    "skew is in a few columns, ALTER TABLE ... ALTER COLUMN ... SET STATISTICS "
+                    "is the cheaper instrument.",
+                    setting="default_statistics_target",
+                    actual=config_res["default_statistics_target"],
+                )
+            )
+
+        if "profile_1c" in selected_profiles:
+            advisories.append(
+                advisory(
+                    "profile_1c_ssl_disabled",
+                    "warning",
+                    f"profile_1c sets ssl={config_res['ssl']}. Traffic between the 1C server "
+                    "and PostgreSQL is unencrypted, so the link between them has to be one you "
+                    "already trust.",
+                    setting="ssl",
+                    actual=config_res["ssl"],
+                )
+            )
+            advisories.append(
+                advisory(
+                    "profile_1c_row_security_disabled",
+                    "warning",
+                    f"profile_1c sets row_security={config_res['row_security']}. This does not "
+                    "read past row-level security: a query that would have a policy applied "
+                    "fails with an error instead, unless the role owns the table or holds "
+                    "BYPASSRLS. Any RLS in the database turns into an outage here, not a "
+                    "bypass.",
+                    setting="row_security",
+                    actual=config_res["row_security"],
+                )
+            )
+            advisories.append(
+                advisory(
+                    "profile_1c_standard_conforming_strings_disabled",
+                    "warning",
+                    "profile_1c sets standard_conforming_strings="
+                    f"{config_res['standard_conforming_strings']}. Backslashes inside ordinary "
+                    "string literals become escape characters again, so existing SQL can parse "
+                    "into something else and an escaping mistake becomes exploitable. It is "
+                    "here because 1C emits literals written for that dialect.",
+                    setting="standard_conforming_strings",
+                    actual=config_res["standard_conforming_strings"],
+                )
+            )
+            requested_1c_connections = 1000
+            binding_limits = []
+            if actual_max_connections == requested_1c_connections:
+                binding_limits.append(f"its own request of {requested_1c_connections}")
+            if actual_max_connections == connection_capacity:
+                binding_limits.append(f"the memory budget, which holds {connection_capacity}")
+            if actual_max_connections == max_conns:
+                binding_limits.append(f"max_conns={max_conns}")
+            advisories.append(
+                advisory(
+                    "profile_1c_connection_target",
+                    "info",
+                    f"profile_1c asks for {requested_1c_connections} connections and "
+                    f"max_connections={actual_max_connections} is what came out, bound by "
+                    + (" and ".join(binding_limits) or "a rule from a later profile")
+                    + ". A connection costs memory whether or not it is running a query, so a "
+                    "pooler in front of the database is what keeps this number affordable.",
+                    setting="max_connections",
+                    actual=actual_max_connections,
+                )
+            )
+            advisories.append(
+                advisory(
+                    "profile_1c_file_limit_raised",
+                    "info",
+                    "profile_1c sets max_files_per_process="
+                    f"{config_res['max_files_per_process']}, well above the default. The "
+                    "operating-system limit on open files has to be raised to match before this "
+                    "is applied, or backends start failing to open relations under load.",
+                    setting="max_files_per_process",
+                    actual=config_res["max_files_per_process"],
+                )
+            )
+            if config_res["synchronous_commit"] == "remote_apply":
+                synchronous_commit_text = (
+                    "synchronous_commit=remote_apply: financial duty with a named standby "
+                    "outranks the 1C performance guidance, so a commit waits for the standby to "
+                    "apply it, not merely to receive it. That is the slowest and safest of the "
+                    "settings on offer."
+                )
+            else:
+                synchronous_commit_text = (
+                    f"synchronous_commit={config_res['synchronous_commit']}: every commit is "
+                    "flushed to local disk before it is acknowledged. 1C performance guidance "
+                    "permits turning this off and losing recent transactions on a crash; this "
+                    "tool does not."
+                )
+            advisories.append(
+                advisory(
+                    "profile_1c_synchronous_commit",
+                    "info",
+                    f"profile_1c leaves {synchronous_commit_text}",
+                    setting="synchronous_commit",
+                    actual=config_res["synchronous_commit"],
+                )
+            )
+            advisories.append(
+                advisory(
+                    "profile_1c_patched_gucs_omitted",
+                    "info",
+                    "profile_1c emits nothing that only a patched PostgreSQL understands, such "
+                    "as enable_temp_memory_catalog. A build that has those settings will not "
+                    "receive them from here without an explicit target-distribution contract.",
+                )
+            )
+
+        if required_extensions:
+            if normalized_available_extensions is None:
+                advisories.append(
+                    advisory(
+                        "preload_modules_not_declared",
+                        "assumption",
+                        "Nothing was declared about what the target has installed, so "
+                        f"shared_preload_libraries={config_res['shared_preload_libraries']} is a "
+                        "requirement this run could not check. These are libraries loaded at "
+                        "startup rather than CREATE EXTENSION objects — auto_explain has no "
+                        "SQL-level extension at all — and a missing one keeps the server from "
+                        "starting. Pass --available-extensions to assert an inventory.",
+                        setting="shared_preload_libraries",
+                        actual=config_res["shared_preload_libraries"],
+                    )
+                )
+            else:
+                advisories.append(
+                    advisory(
+                        "extension_inventory_not_verified",
+                        "assumption",
+                        "The inventory is what the caller declared, not what the target "
+                        "answered: shared_preload_libraries="
+                        f"{config_res['shared_preload_libraries']} was accepted on that word "
+                        "alone. Packaging, preloadability and the GUCs those modules add still "
+                        "have to be checked against the real server before this file is "
+                        "applied.",
+                        setting="shared_preload_libraries",
+                        actual=config_res["shared_preload_libraries"],
+                    )
+                )
+
+        advisories.append(
+            advisory(
+                "csv_log_retention_is_external",
+                "info",
+                f"log_destination={config_res['log_destination']} with rotation by size and by "
+                "time. Rotation renames files; it never deletes them. A total disk limit for "
+                "the log directory has to come from outside PostgreSQL.",
+                setting="log_destination",
+                actual=config_res["log_destination"],
+            )
+        )
+
+        advisories = sort_advisories(advisories)
+
         self.last_inputs = {
             "available_extensions": (
                 sorted(normalized_available_extensions)
@@ -2128,7 +2524,7 @@ class PGConfigurator:
         }
         self.last_parameter_details = dict(sorted(parameter_details.items()))
         self.last_overrides = overrides
-        self.last_warnings = warnings
+        self.last_advisories = advisories
         return config_res
 
     def settings_history(self, list_versions) -> PGConfiguratorResult:
@@ -2220,7 +2616,7 @@ class PGConfigurator:
 
     def build_artifact(self, config):
         artifact = {
-            "schema_version": "pg_configurator/v1",
+            "schema_version": "pg_configurator/v2",
             "kind": "PostgreSQLConfiguration",
             "generator": {
                 "name": "pg-configurator",
@@ -2234,7 +2630,7 @@ class PGConfigurator:
             "calculation": self.last_calculation,
             "parameters": self.last_parameter_details,
             "overrides": self.last_overrides,
-            "warnings": self.last_warnings,
+            "advisories": self.last_advisories,
             "postgresql_conf": config,
         }
         artifact["artifact_hash"] = artifact_hash(artifact)
@@ -2747,7 +3143,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         validation = {
             "valid": True,
             "normalized_inputs": pgc.last_inputs,
-            "warnings": list(pgc.last_warnings),
+            "advisories": list(pgc.last_advisories),
             "candidate_hash": artifact["artifact_hash"],
         }
         payload = (
@@ -2756,7 +3152,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
                 "succeeded",
                 request_id=args.request_id,
                 result=validation,
-                warnings=list(pgc.last_warnings),
+                advisories=list(pgc.last_advisories),
             )
             if args.machine
             else validation
@@ -2766,7 +3162,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
             result_code=ResultCode.DONE,
             result_data=validation,
             artifact=artifact,
-            warnings=list(pgc.last_warnings),
+            advisories=list(pgc.last_advisories),
         )
     output_format = (
         args.output_format
@@ -2796,7 +3192,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
                     ),
                 }
             ],
-            warnings=list(pgc.last_warnings),
+            advisories=list(pgc.last_advisories),
         )
         output = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     elif output_format == OutputFormat.CONF:
@@ -2811,7 +3207,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         result_code=ResultCode.DONE,
         result_data=conf,
         artifact=artifact,
-        warnings=list(pgc.last_warnings),
+        advisories=list(pgc.last_advisories),
     )
 
 
@@ -2823,8 +3219,8 @@ def _render_postgresql_conf(config, artifact):
             socket.gethostname(),
         ),
     ]
-    for warning in artifact["warnings"]:
-        lines.append(f"# WARNING: {warning}")
+    for item in artifact["advisories"]:
+        lines.append("# {}: {}".format(item["severity"].upper(), item["message"]))
     lines.append("")
     lines.extend("{} = {}".format(*item) for item in config.items())
     return "\n".join(lines) + "\n"
