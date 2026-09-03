@@ -273,7 +273,7 @@ machine running the command when their options are omitted.
 | `--synchronous-standby-names=VALUE` | empty | Exact PostgreSQL value. A non-empty value is required before financial duty can emit `remote_apply`. |
 | `--replica-count=N` | `1` | Expected physical replicas used to reserve senders and slots. Ignored when replication mode is `none`. |
 | `--logical-subscription-count=N` | `0` | Native subscriptions used for logical-worker and decoding-memory budgets; requires logical mode and PostgreSQL 10+. |
-| `--peak-wal-rate=SIZE` | `4Mi` | Expected peak WAL bytes per second. |
+| `--peak-wal-rate=SIZE` | assumed `4Mi` | Expected peak WAL bytes per second. Left unset, the value is assumed and the artifact says so in an `assumption` advisory. |
 | `--replica-outage-tolerance=SECONDS` | `900` | How long a replica may be disconnected while retained WAL remains available. |
 | `--wal-disk-budget=SIZE` | `32Gi` | Total `pg_wal`/retention capacity; must be at least 1 GiB and hold at least eight WAL segments. |
 | `--wal-segment-size=SIZE` | `16Mi` | Actual cluster segment size, a power of two from 1 MiB through 1 GiB. |
@@ -326,7 +326,8 @@ JSON output uses `schema_version: pg_configurator/v2` and contains:
   `context=unknown` and `context_source=external_extension`;
 - a minimum deployment action derived from the context: `restart`, `reload`,
   `reload_and_reconnect`, `immutable`, or `manual`;
-- profile override history;
+- profile override history with the source and formatted value before and after
+  each replacement;
 - required extension metadata and whether availability was merely declared by
   the caller;
 - `advisories`: what the tool has to say about the configuration it just
@@ -659,6 +660,10 @@ Version and platform handling is explicit:
 - Windows supports keepalive idle/interval but not `TCP_KEEPCNT`,
   `TCP_USER_TIMEOUT`, or PostgreSQL's client socket polling. Those generated
   values remain `0`; the artifact records the limitation.
+- Windows before PostgreSQL 18 has no `posix_fadvise`, and a Windows server
+  refuses any `effective_io_concurrency` or `maintenance_io_concurrency` other
+  than `0` at startup, so both are written as `0` there. PostgreSQL 18 issues
+  its own asynchronous I/O and receives the storage-derived values.
 - `listen_addresses`, port, `pg_hba.conf`, certificates, DNS, firewall rules,
   load-balancer idle time, and client-driver connect/read timeouts are
   deployment facts and therefore belong to
@@ -884,7 +889,7 @@ const result = pgc.generate({ cpu_cores: 8, ram_value: '16Gi', pg_version: '18' 
 
 result.config.shared_buffers;                    // '3622MB'
 result.advisories.filter((a) => a.severity === 'warning');
-renderConf(result, { version: '0.10.0', host: 'db-1' });
+renderConf(result, { version: '0.11.0', host: 'db-1' });
 ```
 
 `createConfigurator()` reads the bundled rule data from disk, which needs Node.
@@ -914,6 +919,11 @@ carry is what a consumer cannot defend against, so it uses a name of its own.
 
 The self-contained offline page is a separate artifact, built by
 `python3 web/build.py` and published from CI; it is not part of the npm package.
+Its Diff tab compares the calculated settings with a pasted configuration: a
+`postgresql.conf` as it is (comments ignored), or a `pg_settings` export as CSV
+with or without a header row. Values are matched after unit conversion, so
+`8GB`, `8388608kB` and `1048576` pages of `shared_buffers` are one value, and
+only the settings that differ are listed with what applying them costs.
 
 ## Orchestrator integration
 
@@ -949,7 +959,7 @@ python -m twine check dist/*
 ```
 
 Tagged releases are built and published through PyPI Trusted Publishing. A tag
-must match the package version, for example `v0.10.0`.
+must match the package version, for example `v0.11.0`.
 
 ## License and provenance
 

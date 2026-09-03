@@ -18,7 +18,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { makeConf } from '../src/make-conf.js';
+import {
+  makeConf,
+  quotePostgresqlConfValue,
+  unquotePostgresqlConfValue,
+} from '../src/make-conf.js';
 import { createEnums } from '../src/configurator.js';
 
 const DATA = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
@@ -36,6 +40,13 @@ function deepFreeze(value, seen = new WeakSet()) {
   for (const key of Object.keys(value)) deepFreeze(value[key], seen);
   return value;
 }
+
+test('PostgreSQL string literals escape and recover quotes and backslashes', () => {
+  const raw = String.raw`standby'one\west`;
+  const encoded = quotePostgresqlConfValue(raw);
+  assert.equal(encoded, String.raw`'standby''one\\west'`);
+  assert.equal(unquotePostgresqlConfValue(encoded), raw);
+});
 
 test('a result cannot be edited into breaking the next call', () => {
   const data = freshData();

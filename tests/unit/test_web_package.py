@@ -160,6 +160,13 @@ class TestInstalledPackage(unittest.TestCase):
               advisories: result.advisories.length,
               severities: [...new Set(result.advisories.map((item) => item.severity))].sort(),
               conf: renderConf(result, { version: '0', host: 'h' }).split('\\n')[1],
+              guardedComment: renderConf(
+                {
+                  ...result,
+                  advisories: [{ severity: 'warning', message: 'untrusted\\nfsync = off' }],
+                },
+                { version: '0', host: 'h' },
+              ).includes('\\n# fsync = off\\n'),
               defaults: pgc.defaults.pg_version,
             }));
             """
@@ -172,6 +179,7 @@ class TestInstalledPackage(unittest.TestCase):
         self.assertGreater(answer["advisories"], 0)
         self.assertEqual(["assumption", "info"], answer["severities"])
         self.assertEqual("# PostgreSQL 18; host h", answer["conf"])
+        self.assertTrue(answer["guardedComment"])
         self.assertEqual("18", answer["defaults"])
 
     def test_the_data_payloads_resolve_through_the_exports_map(self):

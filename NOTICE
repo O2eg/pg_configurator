@@ -8,3 +8,12 @@ not remove or transfer those historical notices.
 The bundled pg_settings_history CSV files are generated PostgreSQL server
 configuration snapshots. No third-party workload datasets or binary assets are
 distributed by this package.
+
+The web page favicon is the PostgreSQL elephant, taken from the project's
+three-colour logo published at https://wiki.postgresql.org/wiki/Logo and
+embedded as an inline SVG.
+
+PostgreSQL and the elephant logo are trademarks of the PostgreSQL Community
+Association of Canada. They are used here to identify the software this tool
+configures, not to suggest endorsement by or affiliation with the PostgreSQL
+project. See https://www.postgresql.org/about/policies/trademarks/.

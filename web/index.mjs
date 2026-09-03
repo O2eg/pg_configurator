@@ -102,7 +102,9 @@ export function renderConf(result, { version, host }) {
     `# PostgreSQL ${result.inputs.pg_version}; host ${host}`,
   ];
   for (const item of result.advisories) {
-    lines.push(`# ${item.severity.toUpperCase()}: ${item.message}`);
+    const messageLines = String(item.message).split(/\r\n|[\r\n]/);
+    lines.push(`# ${item.severity.toUpperCase()}: ${messageLines[0]}`);
+    for (const line of messageLines.slice(1)) lines.push(`# ${line}`);
   }
   lines.push('');
   for (const [name, value] of Object.entries(result.config)) lines.push(`${name} = ${value}`);

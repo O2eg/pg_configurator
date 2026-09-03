@@ -40,6 +40,7 @@ MODULES = (
     "src/rule-eval.js",
     "src/configurator.js",
     "src/make-conf.js",
+    "src/config-diff.js",
     "src/render.js",
 )
 

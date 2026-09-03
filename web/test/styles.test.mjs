@@ -165,3 +165,13 @@ test('the theme carries both schemes and sets color-scheme for each', () => {
     );
   }
 });
+
+test('every spacing token the structural sheet uses is declared on the scale', () => {
+  const declared = new Set([...structural.matchAll(/--pc-sp-(\d+):/g)].map(([, step]) => step));
+  const referenced = new Set([...structural.matchAll(/var\(--pc-sp-(\d+)\)/g)].map(([, s]) => s));
+  const missing = [...referenced].filter((step) => !declared.has(step)).sort();
+  // A `margin` or `padding` shorthand that names an undeclared custom property
+  // is invalid at computed-value time: the whole declaration silently becomes
+  // its initial value, so the rule looks present and applies nothing.
+  assert.deepEqual(missing, [], 'an undeclared --pc-sp-* zeroes the declaration that uses it');
+});

@@ -127,6 +127,68 @@ function advisory(code, severity, message, setting = null, actual = null) {
 }
 
 /** Mirrors configurator.sort_advisories: Python's sort is stable, and so is this. */
+/** Mirrors configurator.ASSUMED_PEAK_WAL_RATE. */
+export const ASSUMED_PEAK_WAL_RATE = '4Mi';
+
+/** One safe single-quoted PostgreSQL configuration value. */
+export function quotePostgresqlConfValue(value) {
+  const text = pyStr(value);
+  if (/[\0\r\n]/.test(text)) {
+    throw new PyValueError(
+      'PostgreSQL configuration string values must not contain NUL or line breaks',
+    );
+  }
+  return `'${text.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+}
+
+/** Undo quotePostgresqlConfValue for Patroni's structured representation. */
+export function unquotePostgresqlConfValue(value) {
+  const text = String(value);
+  if (text.length < 2 || !text.startsWith("'") || !text.endsWith("'")) return text;
+  const body = text.slice(1, -1);
+  let result = '';
+  for (let index = 0; index < body.length; index += 1) {
+    const pair = body.slice(index, index + 2);
+    if (pair === "''") {
+      result += "'";
+      index += 1;
+    } else if (pair === '\\\\') {
+      result += '\\';
+      index += 1;
+    } else {
+      result += body[index];
+    }
+  }
+  return result;
+}
+
+// Mirrors configurator._SYNCHRONOUS_STANDBY_PATTERN: the grammar of
+// synchronous_standby_names, so that both implementations count standbys the
+// same way.
+const SYNCHRONOUS_STANDBY_PATTERN = /^\s*(?:(ANY|FIRST)\s+)?(?:(\d+)\s*)?\(\s*([^()]*?)\s*\)\s*$/i;
+
+/** Mirrors configurator.parse_synchronous_standby_names. */
+export function parseSynchronousStandbyNames(text) {
+  const match = SYNCHRONOUS_STANDBY_PATTERN.exec(text);
+  let method;
+  let numSync;
+  let namesText;
+  if (match === null) {
+    method = null;
+    numSync = 1;
+    namesText = text;
+  } else {
+    method = match[1] ? match[1].toUpperCase() : null;
+    numSync = match[2] ? Number(match[2]) : 1;
+    namesText = match[3];
+  }
+  const names = namesText
+    .split(',')
+    .filter((name) => name.trim())
+    .map((name) => name.trim().replace(/^"+|"+$/g, ''));
+  return [method, numSync, names];
+}
+
 function sortAdvisories(advisories) {
   return advisories
     .map((item, index) => [item, index])
@@ -250,7 +312,7 @@ const SIZE_FACTORS = {
 
 const TIME_FACTORS = { ms: 0.001, s: 1, min: 60, h: 3600, d: 86400 };
 
-function numericValueInSettingUnits(amount, sourceUnit, targetUnit) {
+export function numericValueInSettingUnits(amount, sourceUnit, targetUnit) {
   if (!sourceUnit) return amount;
   if (sourceUnit in SIZE_FACTORS && targetUnit in SIZE_FACTORS) {
     return (amount * SIZE_FACTORS[sourceUnit]) / SIZE_FACTORS[targetUnit];
@@ -412,7 +474,7 @@ const DEFAULTS = {
   conf_profiles: null,
   disk_score: null,
   work_mem_concurrency_factor: 4.0,
-  peak_wal_rate: '4Mi',
+  peak_wal_rate: null,
   replica_outage_tolerance: 900,
   wal_disk_budget: '32Gi',
   wal_segment_size: '16Mi',
@@ -476,8 +538,19 @@ export function makeConf(cpuCores, ramValue, options, data) {
   if (typeof synchronous_standby_names !== 'string') {
     throw new PyValueError('synchronous_standby_names must be a string');
   }
+  if (/[\0\r\n]/.test(synchronous_standby_names)) {
+    throw new PyValueError('synchronous_standby_names must not contain NUL or line breaks');
+  }
   if (synchronous_standby_names.trim() && !replication_enabled) {
     throw new PyValueError('synchronous_standby_names requires physical or logical replication');
+  }
+  const [sync_method, sync_required, sync_candidates] =
+    parseSynchronousStandbyNames(synchronous_standby_names);
+  if (sync_method !== null && pg_version === '9.6') {
+    throw new PyValueError(
+      `synchronous_standby_names uses ${sync_method}, which PostgreSQL 10 introduced: ` +
+        '9.6 accepts a list of names, optionally preceded by a count',
+    );
   }
   if (typeof common_conf !== 'boolean') {
     throw new PyValueError('common_conf must be a boolean');
@@ -665,7 +738,13 @@ export function makeConf(cpuCores, ramValue, options, data) {
     throw new PyValueError('db_size must be greater than 0');
   }
 
-  const peak_wal_rate_in_bytes = numberOf(sizeFrom(settings.peak_wal_rate, SYS_IEC));
+  const peak_wal_rate_source =
+    settings.peak_wal_rate !== null && settings.peak_wal_rate !== undefined
+      ? 'explicit'
+      : 'default';
+  const peak_wal_rate =
+    peak_wal_rate_source === 'explicit' ? settings.peak_wal_rate : ASSUMED_PEAK_WAL_RATE;
+  const peak_wal_rate_in_bytes = numberOf(sizeFrom(peak_wal_rate, SYS_IEC));
   const wal_disk_budget_in_bytes = numberOf(sizeFrom(settings.wal_disk_budget, SYS_IEC));
   const wal_segment_size_in_bytes = numberOf(sizeFrom(settings.wal_segment_size, SYS_IEC));
   if (peak_wal_rate_in_bytes <= 0) {
@@ -694,7 +773,8 @@ export function makeConf(cpuCores, ramValue, options, data) {
   if (connection_capacity < min_conns) {
     throw new PyValueError(
       `Backend memory reserve supports ${connection_capacity} connections, ` +
-        `less than min_conns=${min_conns}`,
+        `less than min_conns=${min_conns}: add RAM, lower min_conns, or shrink the ` +
+        'memory parts so that more headroom is left for backends',
     );
   }
 
@@ -906,12 +986,19 @@ export function makeConf(cpuCores, ramValue, options, data) {
     ? wal_disk_budget_in_bytes * 0.4
     : 0;
 
-  const effective_io_concurrency =
+  let effective_io_concurrency =
     disk_scores < 25 ? 2 : disk_scores < 50 ? 16 : disk_scores < 75 ? 64 : disk_scores < 90 ? 128 : 256;
-  const maintenance_io_concurrency = Math.max(
+  let maintenance_io_concurrency = Math.max(
     2,
     Math.min(64, Math.floor(effective_io_concurrency / 2)),
   );
+  // See Python: before 18 these are posix_fadvise hints, which Windows lacks.
+  const io_prefetch_available =
+    platform !== Platform.WINDOWS || getMajorVersion(pg_version) >= 18;
+  if (!io_prefetch_available) {
+    effective_io_concurrency = 0;
+    maintenance_io_concurrency = 0;
+  }
   const random_page_cost = numberOf(pyRound(pyFloat(4.0 - (disk_scores / 100) * 2.9), 2));
 
   let io_combine_limit_bytes;
@@ -1268,10 +1355,10 @@ export function makeConf(cpuCores, ramValue, options, data) {
     }
   }
 
-  const base_parameter_names = new Set(
+  const base_parameter_rules = new Map(
     prepareAlgSet(rules.rule_sets.perf, 'conf_perf_base')
       [pg_version].filter((rule) => 'name' in rule)
-      .map((rule) => rule.name),
+      .map((rule) => [rule.name, rule]),
   );
 
   // --- rule context -------------------------------------------------------
@@ -1401,19 +1488,9 @@ export function makeConf(cpuCores, ramValue, options, data) {
     allowedAttributeRoots: runtime.allowedAttributeRoots,
   });
 
-  // --- rule application ---------------------------------------------------
-  const settings_metadata = loadSettingMetadata(pgSettings, pg_version);
-  const restart_required = new Set(rules.restart_required_settings);
-  let config_res = new Map();
-  const parameter_details = new Map();
-  const overrides = [];
-
-  for (const param of prepared_alg_set) {
-    if (!('name' in param)) continue;
+  const calculateRuleValue = (param, source, ruleEvaluator) => {
     const param_name = param.name;
     const rule_expression = 'alg' in param ? param.alg.trim() : null;
-    const source = param._source ?? 'base';
-
     let raw_value;
     try {
       if ('const' in param) {
@@ -1423,7 +1500,7 @@ export function makeConf(cpuCores, ramValue, options, data) {
         if (tree === undefined) {
           throw new RuleEvaluationError(`Unknown rule expression: ${rule_expression}`);
         }
-        raw_value = evaluator.evaluate(tree);
+        raw_value = ruleEvaluator.evaluate(tree);
       }
     } catch (error) {
       throw new RuleEvaluationError(
@@ -1437,21 +1514,66 @@ export function makeConf(cpuCores, ramValue, options, data) {
     } else if (param.to_unit === 'as_is') {
       formatted_value = pyStr(raw_value);
     } else if (param.to_unit === 'quote') {
-      formatted_value = `'${pyStr(raw_value)}'`;
+      formatted_value = quotePostgresqlConfValue(raw_value);
     } else if ('alg' in param) {
       formatted_value = sizeTo(numberOf(raw_value), SYS_PG, param.to_unit ?? null);
     } else {
       formatted_value = pyStr(raw_value);
     }
+    return { rule_expression, raw_value, formatted_value };
+  };
+
+  const base_parameter_values = new Map();
+  if (selected_profiles.length) {
+    const baseRuleContext = { ...rule_context };
+    const baseRuleEvaluator = new RuleEvaluator(baseRuleContext, {
+      allowedCallables: runtime.allowedCallables,
+      allowedAttributeRoots: runtime.allowedAttributeRoots,
+    });
+    for (const [name, baseRule] of base_parameter_rules) {
+      const { raw_value, formatted_value } = calculateRuleValue(
+        baseRule,
+        'base',
+        baseRuleEvaluator,
+      );
+      base_parameter_values.set(name, formatted_value);
+      if (isIdentifier(name)) baseRuleContext[name] = raw_value;
+    }
+  }
+
+  // --- rule application ---------------------------------------------------
+  const settings_metadata = loadSettingMetadata(pgSettings, pg_version);
+  const restart_required = new Set(rules.restart_required_settings);
+  let config_res = new Map();
+  const parameter_details = new Map();
+  const overrides = [];
+
+  for (const param of prepared_alg_set) {
+    if (!('name' in param)) continue;
+    const param_name = param.name;
+    const source = param._source ?? 'base';
+    const { rule_expression, raw_value, formatted_value } = calculateRuleValue(
+      param,
+      source,
+      evaluator,
+    );
 
     if (parameter_details.has(param_name)) {
       overrides.push({
         parameter: param_name,
         from: parameter_details.get(param_name).source,
+        value_from: parameter_details.get(param_name).value,
         to: source,
+        value_to: formatted_value,
       });
-    } else if (source !== 'base' && base_parameter_names.has(param_name)) {
-      overrides.push({ parameter: param_name, from: 'base', to: source });
+    } else if (source !== 'base' && base_parameter_values.has(param_name)) {
+      overrides.push({
+        parameter: param_name,
+        from: 'base',
+        value_from: base_parameter_values.get(param_name),
+        to: source,
+        value_to: formatted_value,
+      });
     }
 
     config_res.set(param_name, formatted_value);
@@ -1548,7 +1670,11 @@ export function makeConf(cpuCores, ramValue, options, data) {
     lock_memory_envelope +
     actual_max_connections * backend_memory_reserve_in_bytes;
   if (memory_envelope_bytes > total_ram_in_bytes * 0.9) {
-    throw new PyValueError('Calculated concurrent memory envelope exceeds 90% of available RAM');
+    throw new PyValueError(
+      'Calculated concurrent memory envelope exceeds 90% of available RAM: fewer CPU ' +
+        'cores, a lower work_mem_concurrency_factor or client_mem_part, or more RAM ' +
+        'brings it back inside',
+    );
   }
 
   // --- advisories ---------------------------------------------------------
@@ -1560,6 +1686,8 @@ export function makeConf(cpuCores, ramValue, options, data) {
     names.map((name) => `${name}=${config_res.get(name)}`).join(', ');
 
   const advisories = [];
+  const major_version = getMajorVersion(pg_version);
+  const retention_setting = config_res.has('wal_keep_size') ? 'wal_keep_size' : 'wal_keep_segments';
 
   if (shared_buffers_part >= 0.35) {
     advisories.push(
@@ -1571,6 +1699,42 @@ export function makeConf(cpuCores, ramValue, options, data) {
           'available RAM the same pages tend to be held twice, once here and once in ' +
           'the kernel cache, and the second copy is the one that stops helping. The ' +
           "0.35 threshold is this tool's, not a PostgreSQL limit.",
+        'shared_buffers',
+        config_res.get('shared_buffers'),
+      ),
+    );
+  }
+
+  const shared_buffers_actual_bytes = numberOf(sizeFrom(config_res.get('shared_buffers'), SYS_PG));
+  if (shared_buffers_actual_bytes >= 8 * gibibyte) {
+    let huge_pages_text =
+      `shared_buffers=${config_res.get('shared_buffers')} is mapped with the default ` +
+      'huge_pages=try, which falls back to 4kB pages without a word when none are ' +
+      'reserved; at this size every backend that walks the buffer pool builds page ' +
+      'tables of its own and TLB misses become query latency. ';
+    if (platform === Platform.WINDOWS) {
+      huge_pages_text +=
+        'On Windows large pages need the Lock pages in memory privilege for the ' +
+        'service account, and huge_pages=on turns a missing grant into a startup ' +
+        'error instead of a silent fallback.';
+    } else {
+      huge_pages_text += 'Reserve vm.nr_hugepages before the server starts';
+      huge_pages_text +=
+        major_version >= 15
+          ? ': postgres -C shared_memory_size_in_huge_pages -D <datadir> prints the ' +
+            'exact count'
+          : ', sized from the shared memory the server logs at startup plus a margin';
+      huge_pages_text +=
+        major_version >= 17
+          ? ', and huge_pages_status shows after start whether the mapping succeeded.'
+          : '; huge_pages=on turns a failed reservation into a startup error ' +
+            'instead of a silent fallback.';
+    }
+    advisories.push(
+      advisory(
+        'huge_pages_not_reserved',
+        'assumption',
+        huge_pages_text,
         'shared_buffers',
         config_res.get('shared_buffers'),
       ),
@@ -1594,6 +1758,29 @@ export function makeConf(cpuCores, ramValue, options, data) {
     );
   }
 
+  if (peak_wal_rate_source === 'default') {
+    const wal_sizing_settings = [
+      'max_wal_size',
+      'min_wal_size',
+      'wal_keep_size',
+      'wal_keep_segments',
+    ].filter(
+      (name) => config_res.has(name) && (replication_enabled || !name.startsWith('wal_keep')),
+    );
+    advisories.push(
+      advisory(
+        'peak_wal_rate_assumed',
+        'assumption',
+        `peak_wal_rate was not supplied, so a peak of ${ASSUMED_PEAK_WAL_RATE} per ` +
+          `second is assumed. It sizes ${settingsText(wal_sizing_settings)}, the ` +
+          'settings most sensitive to it: measure the real peak (pg_current_wal_lsn ' +
+          'deltas, pg_stat_wal from 14, or pg_diag) and pass it to replace the guess.',
+        null,
+        ASSUMED_PEAK_WAL_RATE,
+      ),
+    );
+  }
+
   const hash_budget_text = config_res.has('hash_mem_multiplier')
     ? `hash_mem_multiplier=${config_res.get('hash_mem_multiplier')}`
     : `a factor of ${pyStr(pyFloat(hash_mem_multiplier))} for hash operations, which on ` +
@@ -1613,10 +1800,61 @@ export function makeConf(cpuCores, ramValue, options, data) {
     ),
   );
 
+  const hash_factor_text = config_res.has('hash_mem_multiplier')
+    ? `hash_mem_multiplier=${config_res.get('hash_mem_multiplier')}`
+    : `a hash factor of ${pyStr(pyFloat(hash_mem_multiplier))}`;
+  const work_mem_exposure_bytes =
+    actual_max_connections * work_mem_bytes * work_mem_concurrency_factor * hash_mem_multiplier;
+  if (work_mem_exposure_bytes > ram_in_bytes) {
+    advisories.push(
+      advisory(
+        'work_mem_worst_case_exceeds_ram',
+        'warning',
+        `work_mem=${config_res.get('work_mem')} was sized for ${actual_active_sessions} ` +
+          `active sessions, but max_connections=${actual_max_connections} may all be ` +
+          'busy at once: at ' +
+          `work_mem_concurrency_factor=${pyStr(pyFloat(work_mem_concurrency_factor))} ` +
+          `allocations each and ${hash_factor_text}, that is ` +
+          `${sizeText(work_mem_exposure_bytes)} of query memory against ` +
+          `${sizeText(ram_in_bytes)} of RAM. A pooler that keeps concurrency near ` +
+          `${actual_active_sessions}, or a lower max_conns, is what keeps the worst case ` +
+          'inside physical memory.',
+        'work_mem',
+        config_res.get('work_mem'),
+      ),
+    );
+  }
+
+  if (!selected_profiles.includes('profile_1c')) {
+    const cpu_connection_target = min_conns + (cpu_threads - 1) * connections_per_cpu;
+    if (
+      actual_max_connections < cpu_connection_target &&
+      (actual_max_connections === connection_capacity || actual_max_connections === max_conns)
+    ) {
+      const connection_bound =
+        actual_max_connections === connection_capacity
+          ? `the memory budget, which holds ${connection_capacity}`
+          : `max_conns=${max_conns}`;
+      advisories.push(
+        advisory(
+          'max_connections_capped',
+          'info',
+          `max_connections=${actual_max_connections}: min_conns=${min_conns} plus ` +
+            `${cpu_threads - 1} further CPU cores at ${connections_per_cpu} ` +
+            `connections each (${duty_db.value} duty) would give ` +
+            `${cpu_connection_target}, and ${connection_bound} is what holds it ` +
+            'down. A connection costs backend memory whether or not it is busy, so ' +
+            'a pooler in front of the database is what makes more of them ' +
+            'affordable; add RAM to move the memory bound, or raise max_conns when ' +
+            'that is the ceiling.',
+          'max_connections',
+          actual_max_connections,
+        ),
+      );
+    }
+  }
+
   if (replication_enabled && desired_wal_keep_bytes > numberOf(wal_keep_bytes)) {
-    const retention_setting = config_res.has('wal_keep_size')
-      ? 'wal_keep_size'
-      : 'wal_keep_segments';
     advisories.push(
       advisory(
         'wal_retention_capped',
@@ -1633,6 +1871,143 @@ export function makeConf(cpuCores, ramValue, options, data) {
         retention_setting,
         config_res.get(retention_setting),
       ),
+    );
+  }
+
+  const desired_max_wal_size_bytes = peak_wal_rate_in_bytes * checkpoint_timeout_seconds * 2;
+  if (desired_max_wal_size_bytes > wal_disk_budget_in_bytes * 0.5) {
+    const seconds_at_peak = Math.trunc(numberOf(max_wal_size_bytes) / peak_wal_rate_in_bytes);
+    advisories.push(
+      advisory(
+        'max_wal_size_capped_by_wal_budget',
+        'warning',
+        'Two checkpoint intervals of WAL at ' +
+          `peak_wal_rate=${sizeText(peak_wal_rate_in_bytes)}/s come to ` +
+          `${sizeText(desired_max_wal_size_bytes)}, more than the half of ` +
+          'wal_disk_budget this tool lets max_wal_size have, so ' +
+          `max_wal_size=${config_res.get('max_wal_size')} is what fits: about ` +
+          `${seconds_at_peak}s of peak writes against ` +
+          `checkpoint_timeout=${config_res.get('checkpoint_timeout')}. Under sustained ` +
+          'peak load checkpoints are then triggered by size, and each one restarts ' +
+          'full-page writes, raising the WAL volume further. Raise wal_disk_budget, ' +
+          'or lower peak_wal_rate if the peak was overstated.',
+        'max_wal_size',
+        config_res.get('max_wal_size'),
+      ),
+    );
+  }
+
+  if (replication_enabled && !config_res.has('max_slot_wal_keep_size')) {
+    advisories.push(
+      advisory(
+        'replication_slot_retention_unbounded',
+        'warning',
+        `PostgreSQL ${pg_version} has no max_slot_wal_keep_size, so with ` +
+          `max_replication_slots=${config_res.get('max_replication_slots')} a slot whose ` +
+          'consumer has gone keeps every WAL segment since its restart_lsn until ' +
+          `pg_wal fills the disk; ${retention_setting}=${config_res.get(retention_setting)} ` +
+          'bounds only what is kept without a slot. Watch pg_replication_slots for ' +
+          'inactive slots and drop the ones nobody will resume; PostgreSQL 13 adds ' +
+          'the cap.',
+        'max_replication_slots',
+        config_res.get('max_replication_slots'),
+      ),
+    );
+  }
+
+  if (
+    synchronous_standby_names.trim() &&
+    sync_candidates.length > 0 &&
+    !sync_candidates.includes('*') &&
+    sync_required >= sync_candidates.length
+  ) {
+    const standby_text =
+      sync_candidates.length === 1
+        ? 'its only standby'
+        : `every one of its ${sync_candidates.length} standbys`;
+    const standby_example =
+      major_version >= 10 ? 'FIRST 1 (s1, s2), or a quorum such as ANY 1 (s1, s2)' : '1 (s1, s2)';
+    advisories.push(
+      advisory(
+        'synchronous_standbys_all_required',
+        'warning',
+        `synchronous_standby_names=${config_res.get('synchronous_standby_names')} needs ` +
+          `${standby_text} for every commit: with one of them unreachable, each commit ` +
+          `waits at synchronous_commit=${config_res.get('synchronous_commit')} until it is ` +
+          'back or a superuser lowers synchronous_commit on the fly. Name more ' +
+          'standbys than the count that must answer, for example ' +
+          `${standby_example}.`,
+        'synchronous_standby_names',
+        config_res.get('synchronous_standby_names'),
+      ),
+    );
+  }
+
+  if (!replication_enabled && replica_count > 0) {
+    advisories.push(
+      advisory(
+        'replica_count_ignored',
+        'info',
+        `replica_count=${replica_count} was given with replication_mode=none, so it ` +
+          `changed nothing: max_wal_senders=${config_res.get('max_wal_senders')} and ` +
+          `max_replication_slots=${config_res.get('max_replication_slots')} are what a ` +
+          'cluster without replicas gets. Ask for replication_mode=physical if ' +
+          'standbys are planned.',
+        'max_wal_senders',
+        config_res.get('max_wal_senders'),
+      ),
+    );
+  } else if (
+    replication_enabled &&
+    effective_replica_count === 0 &&
+    effective_logical_subscriptions === 0
+  ) {
+    advisories.push(
+      advisory(
+        'replication_without_replicas',
+        'info',
+        `replication_mode=${replication_mode.value} with replica_count=0: ` +
+          `max_wal_senders=${config_res.get('max_wal_senders')} and ` +
+          `max_replication_slots=${config_res.get('max_replication_slots')} keep room for ` +
+          'base backups and one unplanned standby, and ' +
+          `wal_level=${config_res.get('wal_level')} stays ready. Set replica_count once ` +
+          'the standbys are known so that their senders and slots are provisioned.',
+        'max_wal_senders',
+        config_res.get('max_wal_senders'),
+      ),
+    );
+  }
+
+  if (config_res.get('wal_level') === 'logical') {
+    let logical_text =
+      'wal_level=logical logs the replica identity of every updated or deleted row, ' +
+      'the whole old row where REPLICA IDENTITY FULL is set, so WAL volume follows ' +
+      'the write mix and not only this setting. ' +
+      `max_replication_slots=${config_res.get('max_replication_slots')} and ` +
+      `max_wal_senders=${config_res.get('max_wal_senders')} are sized for ` +
+      `logical_subscription_count=${effective_logical_subscriptions} and ` +
+      `replica_count=${effective_replica_count}.`;
+    if (config_res.has('logical_decoding_work_mem')) {
+      logical_text +=
+        ' logical_decoding_work_mem=' +
+        `${config_res.get('logical_decoding_work_mem')} caps what a decoder holds ` +
+        'before spilling to disk.';
+    }
+    if (major_version >= 17) {
+      logical_text +=
+        ' Slots do not survive a failover on their own: PostgreSQL 17 adds failover ' +
+        'slots with synchronized_standby_slots here and sync_replication_slots on ' +
+        'the standby, all left to the deployment by this file.';
+    }
+    if (config_res.has('idle_replication_slot_timeout')) {
+      logical_text +=
+        ' idle_replication_slot_timeout=' +
+        `${config_res.get('idle_replication_slot_timeout')} invalidates a slot nobody ` +
+        'consumes for that long, so a paused subscriber has to resume within it or ' +
+        'be resynchronised.';
+    }
+    advisories.push(
+      advisory('logical_replication_provisioned', 'info', logical_text, 'wal_level', config_res.get('wal_level')),
     );
   }
 
@@ -1701,6 +2076,11 @@ export function makeConf(cpuCores, ramValue, options, data) {
   }
 
   if (pitr_enabled) {
+    const incremental_backup_text =
+      major_version >= 17
+        ? ' PostgreSQL 17 can also take incremental base backups once summarize_wal=on, ' +
+          'which this file leaves off.'
+        : '';
     advisories.push(
       advisory(
         'pitr_transport_not_configured',
@@ -1709,7 +2089,8 @@ export function makeConf(cpuCores, ramValue, options, data) {
           'part of point-in-time recovery a configuration file can supply. Base ' +
           'backups, WAL archiving and the restore path are deployment work this tool ' +
           'does not do: pg_stand is one way to arrange it, pgBackRest and barman are ' +
-          'others.',
+          'others.' +
+          incremental_backup_text,
         'wal_level',
         config_res.get('wal_level'),
       ),
@@ -1799,6 +2180,24 @@ export function makeConf(cpuCores, ramValue, options, data) {
         'that has already gone.';
     }
     advisories.push(advisory('windows_network_options_unavailable', 'info', windows_text));
+    if (!io_prefetch_available) {
+      const prefetch_settings = ['effective_io_concurrency', 'maintenance_io_concurrency'].filter(
+        (name) => config_res.has(name),
+      );
+      advisories.push(
+        advisory(
+          'windows_io_prefetch_unavailable',
+          'info',
+          `${settingsText(prefetch_settings)}: before PostgreSQL 18 these are ` +
+            'posix_fadvise read-ahead hints, Windows has no posix_fadvise, and a ' +
+            'Windows server refuses any other value at startup. Bitmap heap scans ' +
+            'read one block at a time here; PostgreSQL 18 issues its own ' +
+            'asynchronous I/O and takes the disk-derived values again.',
+          'effective_io_concurrency',
+          config_res.get('effective_io_concurrency'),
+        ),
+      );
+    }
   }
 
   if (database_size_in_bytes === null) {
@@ -1969,6 +2368,55 @@ export function makeConf(cpuCores, ramValue, options, data) {
     }
   }
 
+  if (config_res.get('wal_compression') === 'pglz') {
+    advisories.push(
+      advisory(
+        'wal_compression_build_unknown',
+        'assumption',
+        'wal_compression=pglz is the one method every build carries. lz4 and zstd ' +
+          'compress full-page images faster and smaller, but only a server built with ' +
+          '--with-lz4 or --with-zstd accepts them, and nothing here knows how the ' +
+          'target was built: where pg_config --configure lists the flag, set ' +
+          'wal_compression=lz4, or zstd for the smaller output.',
+        'wal_compression',
+        config_res.get('wal_compression'),
+      ),
+    );
+  }
+
+  if (config_res.has('io_method')) {
+    advisories.push(
+      advisory(
+        'io_method_worker_assumed',
+        'assumption',
+        `io_method=${config_res.get('io_method')} with io_workers=` +
+          `${config_res.get('io_workers')}: PostgreSQL 18 runs asynchronous I/O through ` +
+          'worker processes on every platform, while io_uring needs a build with ' +
+          '--with-liburing and a kernel that permits it, neither of which this run ' +
+          `can see. The ${config_res.get('io_workers')} workers serve every backend, and ` +
+          `effective_io_concurrency=${config_res.get('effective_io_concurrency')} bounds ` +
+          'the reads each backend keeps in flight; watch pg_stat_io before raising ' +
+          'io_workers.',
+        'io_method',
+        config_res.get('io_method'),
+      ),
+    );
+  }
+
+  if (config_res.get('jit') === 'on') {
+    advisories.push(
+      advisory(
+        'jit_requires_llvm_build',
+        'assumption',
+        'jit=on takes effect only in a server built with --with-llvm; elsewhere the ' +
+          'setting is accepted and silently does nothing. pg_config --configure, or ' +
+          'pg_jit_available() in a session, says which build this is.',
+        'jit',
+        config_res.get('jit'),
+      ),
+    );
+  }
+
   advisories.push(
     advisory(
       'csv_log_retention_is_external',
@@ -1997,6 +2445,7 @@ export function makeConf(cpuCores, ramValue, options, data) {
     duty_db: duty_db.value,
     logical_subscription_count: effective_logical_subscriptions,
     peak_wal_rate_bytes_per_second: peak_wal_rate_in_bytes,
+    peak_wal_rate_source,
     pitr_enabled,
     pg_version,
     profiles: selected_profiles,

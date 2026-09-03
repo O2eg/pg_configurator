@@ -145,7 +145,8 @@ export const FIELD_HELP = {
     'WAL written per second at peak, with an IEC suffix.\n' +
     'Sizes max_wal_size — peak rate times the checkpoint interval, doubled — and ' +
     'how much WAL is kept for a replica that has fallen behind. Worth measuring ' +
-    'rather than guessing; it is the input the WAL settings are most sensitive to.',
+    'rather than guessing; it is the input the WAL settings are most sensitive to.\n' +
+    'Left empty, 4Mi per second is assumed and the Advisories tab says so.',
 
   replica_outage_tolerance:
     'How long, in seconds, a replica may be absent and still catch up from ' +

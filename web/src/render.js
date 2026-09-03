@@ -12,7 +12,13 @@
  */
 
 import { FIELD_HELP } from './field-help.js';
-import { makeConf } from './make-conf.js';
+import {
+  ASSUMED_PEAK_WAL_RATE,
+  loadSettingMetadata,
+  makeConf,
+  unquotePostgresqlConfValue,
+} from './make-conf.js';
+import { diffConfigurations, parseUserConfig } from './config-diff.js';
 import { createEnums } from './configurator.js';
 import { numberOf, PyNumber, pyStr, sizeTo, SYS_IEC } from './units.js';
 
@@ -127,7 +133,14 @@ const SLIDERS = {
   min_maint_conns: { min: 1, max: 64, step: 1, atMost: 'max_maint_conns' },
   max_maint_conns: { min: 1, max: 64, step: 1, atLeast: 'min_maint_conns' },
 
-  peak_wal_rate: { min: 1, max: 512, step: 1, unit: 'Mi' },
+  peak_wal_rate: {
+    min: 1,
+    max: 512,
+    step: 1,
+    unit: 'Mi',
+    optional: true,
+    unset: () => ASSUMED_PEAK_WAL_RATE,
+  },
   replica_outage_tolerance: { min: 0, max: 7200, step: 60 },
   wal_disk_budget: { min: 1, max: 1024, step: 1, unit: 'Gi' },
 };
@@ -164,6 +177,7 @@ const TABS = [
   { id: 'calculation', label: 'Calculation' },
   { id: 'advisories', label: 'Advisories', finding: true },
   { id: 'overrides', label: 'Overrides' },
+  { id: 'diff', label: 'Diff' },
   // Kept for parity/debugging and easy restoration, but raw runtime JSON is
   // not a primary browser workflow.
   { id: 'artifact', label: 'Artifact', hidden: true },
@@ -182,7 +196,7 @@ const MAIN_OUTPUT_TABS = [
  * copy into a cluster believing it matches the form above it. The rest of the
  * tabs keep the last good answer so a half-typed size does not blank the page.
  */
-const HIDES_STALE_OUTPUT = new Set(['conf', 'settings', 'patroni']);
+const HIDES_STALE_OUTPUT = new Set(['conf', 'settings', 'patroni', 'diff']);
 
 const STALE_NOTICE = 'Not shown while the input is invalid — see the message on the Main tab.';
 
@@ -213,6 +227,8 @@ export class ConfiguratorPage {
     this.result = null;
     this.error = null;
     this.settingsFilter = '';
+    // What the Diff tab compares against; kept across recalculations.
+    this.diffText = '';
     this.active = 'main';
     this.activeMainOutput = 'conf';
 
@@ -660,9 +676,9 @@ export class ConfiguratorPage {
       // one, and at the low end when there is not — a range whose value was
       // never set keeps the midpoint it was born with, clamped to whatever
       // maximum arrives later, which left db-size sitting on 100Ti.
-      const derived = Number(label);
+      const derived = sliderPosition(label, spec);
       range.value =
-        label !== '' && Number.isFinite(derived)
+        label !== '' && derived !== null
           ? String(rangePosition(derived, spec))
           : range.min;
     };
@@ -817,6 +833,7 @@ export class ConfiguratorPage {
         : 0,
       overrides: this.result ? this.result.overrides.length : 0,
       calculation: this.result ? Object.keys(this.result.calculation).length : 0,
+      diff: this.hidesStaleOutput('diff') ? 0 : (this.diffSummary()?.rows.length ?? 0),
     };
     for (const [id, value] of Object.entries(counts)) {
       const entry = this.tabButtons.get(id);
@@ -857,6 +874,7 @@ export class ConfiguratorPage {
       calculation: () => this.renderCalculation(panel),
       advisories: () => this.renderAdvisories(panel),
       overrides: () => this.renderOverrides(panel),
+      diff: () => this.renderDiff(panel),
       artifact: () => this.renderArtifact(panel),
     };
     renderers[id]?.();
@@ -887,7 +905,9 @@ export class ConfiguratorPage {
       `# PostgreSQL ${this.result.inputs.pg_version}`,
     ];
     for (const item of this.result.advisories) {
-      lines.push(`# ${item.severity.toUpperCase()}: ${item.message}`);
+      const messageLines = String(item.message).split(/\r\n|[\r\n]/);
+      lines.push(`# ${item.severity.toUpperCase()}: ${messageLines[0]}`);
+      for (const line of messageLines.slice(1)) lines.push(`# ${line}`);
     }
     lines.push('');
     for (const [name, value] of Object.entries(this.result.config)) {
@@ -1031,7 +1051,13 @@ export class ConfiguratorPage {
     const table = el('table', 'pc-table');
     const head = el('thead');
     const headRow = el('tr');
-    headRow.append(el('th', null, 'Setting'), el('th', null, 'From'), el('th', null, 'To'));
+    headRow.append(
+      el('th', null, 'Setting'),
+      el('th', null, 'From'),
+      el('th', null, 'Value From'),
+      el('th', null, 'To'),
+      el('th', null, 'Value To'),
+    );
     head.append(headRow);
     table.append(head);
     const body = el('tbody');
@@ -1039,13 +1065,122 @@ export class ConfiguratorPage {
       const row = el('tr');
       row.append(el('td', null, item.parameter));
       row.append(el('td', 'pc-muted', item.from));
+      row.append(el('td', null, item.value_from));
       row.append(el('td', 'pc-source-profile', item.to));
+      row.append(el('td', null, item.value_to));
       body.append(row);
     }
     table.append(body);
     const wrap = el('div', 'pc-tablewrap');
     wrap.append(table);
     panel.append(wrap);
+  }
+
+  // ------------------------------------------------------------------ diff
+
+  /** What the pasted configuration disagrees with, or null when there is nothing to compare. */
+  diffSummary() {
+    if (this.result === null || !this.diffText.trim()) return null;
+    const parsed = parseUserConfig(this.diffText);
+    const metadata = loadSettingMetadata(this.pgSettings, this.result.inputs.pg_version);
+    return { parsed, ...diffConfigurations(this.result.parameters, parsed.entries, metadata) };
+  }
+
+  renderDiff(panel) {
+    panel.append(
+      el(
+        'div',
+        'pc-table-intro pc-hint',
+        'Paste the configuration the cluster runs now: postgresql.conf as it is (comments ' +
+          'are ignored), or a pg_settings export as CSV, with or without a header row. Only ' +
+          'the settings this run calculated are compared, after unit conversion, and only ' +
+          'the ones that differ are listed.',
+      ),
+    );
+    const input = el('textarea', 'pc-diff-input');
+    input.id = 'diff-input';
+    input.rows = 8;
+    input.spellcheck = false;
+    input.placeholder = 'shared_buffers = 4GB        # or:  name,setting,unit';
+    input.setAttribute('aria-label', 'Current configuration to compare');
+    input.value = this.diffText;
+    const results = el('div');
+    results.id = 'diff-results';
+    input.addEventListener('input', () => {
+      this.diffText = input.value;
+      // The box is left alone so typing keeps its focus; only the answer moves.
+      this.renderDiffResults(results);
+      this.renderCounts();
+    });
+    panel.append(input, results);
+    this.renderDiffResults(results);
+  }
+
+  renderDiffResults(container) {
+    clear(container);
+    const summary = this.diffSummary();
+    if (summary === null) {
+      container.append(el('div', 'pc-empty', 'Nothing pasted yet.'));
+      return;
+    }
+    const { parsed, rows, matching, missing, unknown } = summary;
+    const readAs = {
+      conf: 'postgresql.conf',
+      csv: parsed.header ? 'CSV with a header row' : 'CSV without a header row',
+    }[parsed.format];
+    if (!parsed.entries.size) {
+      container.append(
+        el(
+          'div',
+          'pc-empty',
+          readAs
+            ? `Read as ${readAs}, but no setting was found in it.`
+            : 'The text is neither a postgresql.conf nor a name/value export.',
+        ),
+      );
+      return;
+    }
+    const parts = [
+      `Read as ${readAs}: ${parsed.entries.size} settings.`,
+      `${rows.length} differ, ${matching} match,`,
+      `${missing} calculated settings are not in the input,`,
+      `${unknown} pasted settings this tool does not calculate.`,
+    ];
+    if (parsed.skipped) parts.push(`${parsed.skipped} lines skipped.`);
+    const line = el('div', 'pc-diff-summary pc-hint', parts.join(' '));
+    line.id = 'diff-summary';
+    container.append(line);
+    if (!rows.length) {
+      container.append(
+        el('div', 'pc-empty', 'No differences among the settings present on both sides.'),
+      );
+      return;
+    }
+
+    const scroll = el('div', 'pc-tablewrap');
+    const table = el('table', 'pc-table');
+    const head = el('thead');
+    const headRow = el('tr');
+    for (const column of ['Setting', 'Calculated', 'Yours', 'Apply', 'Context']) {
+      headRow.append(el('th', null, column));
+    }
+    head.append(headRow);
+    table.append(head);
+    const body = el('tbody');
+    for (const item of rows) {
+      const row = el('tr');
+      row.append(el('td', null, item.name));
+      row.append(el('td', null, item.calculated));
+      row.append(el('td', 'pc-diff-yours', item.yours));
+      const apply = el('td');
+      apply.append(el('span', `pc-apply pc-apply-${item.apply_mode}`, item.apply_mode));
+      row.append(apply);
+      row.append(el('td', 'pc-muted', item.context));
+      body.append(row);
+    }
+    table.append(body);
+    scroll.append(table);
+    container.append(scroll);
   }
 
   renderArtifact(panel) {
@@ -1082,7 +1217,7 @@ export class ConfiguratorPage {
   renderPatroni(panel) {
     const parameters = {};
     for (const [name, value] of Object.entries(this.result.config)) {
-      parameters[name] = String(value).replace(/^'|'$/g, '');
+      parameters[name] = unquotePostgresqlConfValue(value);
     }
     parameters.max_replication_slots = String(
       Math.max(4, Math.trunc(Number(parameters.max_replication_slots))),

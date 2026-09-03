@@ -64,6 +64,9 @@ ACCEPTED = [
     ),
     (["--pg-version=18", "--replication-enabled=false"], "compat-alias"),
     (["--pg-version=18", "--platform=WINDOWS"], "windows"),
+    (["--pg-version=17", "--platform=WINDOWS", "--db-disk-type=NVME"], "windows-prefetch"),
+    (["--pg-version=18", "--peak-wal-rate=4Mi"], "peak-explicit"),
+    (["--pg-version=18", "--synchronous-standby-names=s1"], "sync-single"),
     (["--pg-version=18", "--db-size=500Gi"], "db-size"),
     (["--pg-version=18", "--available-extensions=auto_explain,pg_stat_statements"], "extensions"),
     (["--pg-version=18", "--wal-segment-size=64Mi", "--wal-disk-budget=64Gi"], "wal"),
@@ -83,6 +86,13 @@ REJECTED = [
     (["--pg-version=18", "--min-conns=100", "--max-conns=50"], "range"),
     (["--pg-version=18", "--wal-disk-budget=512Mi"], "wal-budget"),
     (["--db-cpu=0", "--db-ram=8Gi"], "zero-cpu"),
+    (["--pg-version=9.6", "--synchronous-standby-names=ANY 1 (a, b)"], "sync-any-on-96"),
+    (
+        ["--pg-version=18", "--synchronous-standby-names=standby1'\nfsync = off\n#"],
+        "sync-conf-injection",
+    ),
+    (["--db-cpu=96", "--db-ram=8Gi"], "envelope"),
+    (["--db-cpu=500m", "--db-ram=512Mi"], "reserve-below-min-conns"),
     # An option still waiting for a value never swallows the next option, known
     # or not; a flag never accepts one at all. Both used to pass here and change
     # the configuration silently.
@@ -163,6 +173,25 @@ class TestCommandLineParity(unittest.TestCase):
                 actual = node_cli(command, self.node)
                 self.assertEqual(0, actual["exit"], actual["stderr"])
                 self.assertEqual(expected["stdout"], actual["stdout"])
+
+    def test_patroni_document_recovers_raw_quoted_values(self):
+        raw_value = r"standby'one\west"
+        command = [
+            *BASE,
+            "--pg-version=18",
+            f"--synchronous-standby-names={raw_value}",
+            "--output-format=patroni-json",
+        ]
+        expected = python_cli(command)
+        actual = node_cli(command, self.node)
+
+        self.assertEqual(0, actual["exit"], actual["stderr"])
+        self.assertEqual(expected["stdout"], actual["stdout"])
+        document = json.loads(actual["stdout"])
+        self.assertEqual(
+            raw_value,
+            document["postgresql"]["parameters"]["synchronous_standby_names"],
+        )
 
     def test_json_artifact_matches_apart_from_its_provenance(self):
         for argv, label in ACCEPTED[:8]:

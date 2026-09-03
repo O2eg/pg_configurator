@@ -1,6 +1,6 @@
 {
   "generator": "tools/export_web_data.py",
-  "package_version": "0.10.0",
+  "package_version": "0.11.0",
   "payload": {
     "base": {
       "DateStyle": [

@@ -8,7 +8,13 @@ from types import SimpleNamespace
 
 from pg_configurator import PGConfigurator, PGConfiguratorResult
 from pg_configurator.common import ResultCode
-from pg_configurator.configurator import UnitConverter, run_pgc
+from pg_configurator.configurator import (
+    UnitConverter,
+    _patroni_document,
+    _render_postgresql_conf,
+    quote_postgresql_conf_value,
+    run_pgc,
+)
 
 
 class TestPublicAPI(unittest.TestCase):
@@ -33,6 +39,38 @@ class TestPublicAPI(unittest.TestCase):
         self.assertEqual(ResultCode.DONE, result.result_code)
         self.assertIn("version", result.result_data)
         self.assertTrue(stdout.getvalue().startswith("pg-configurator "))
+
+    def test_conf_advisory_lines_cannot_become_active_settings(self):
+        output = _render_postgresql_conf(
+            {"fsync": "on"},
+            {
+                "inputs": {"pg_version": "18"},
+                "advisories": [
+                    {"severity": "warning", "message": "untrusted\nfsync = off\n# tail"}
+                ],
+            },
+        )
+
+        self.assertIn("# WARNING: untrusted\n# fsync = off\n# # tail\n", output)
+        active_fsync = [
+            line for line in output.splitlines() if "fsync =" in line and not line.startswith("#")
+        ]
+        self.assertEqual(["fsync = on"], active_fsync)
+
+    def test_patroni_output_recovers_raw_quoted_values(self):
+        raw_value = r"standby'one\west"
+        document = _patroni_document(
+            {
+                "max_replication_slots": "2",
+                "synchronous_standby_names": quote_postgresql_conf_value(raw_value),
+            }
+        )
+
+        self.assertEqual(
+            raw_value,
+            document["postgresql"]["parameters"]["synchronous_standby_names"],
+        )
+        self.assertEqual("4", document["postgresql"]["parameters"]["max_replication_slots"])
 
     def test_json_output_is_single_versioned_artifact(self):
         stdout = StringIO()
@@ -113,6 +151,26 @@ class TestPublicAPI(unittest.TestCase):
                 conf_profiles="profile_1c",
                 available_extensions="pg_stat_statements",
             )
+
+    def test_override_history_records_the_values_before_and_after_a_profile(self):
+        configurator = PGConfigurator(self.args, [])
+        configurator.make_conf("8", "16Gi", pg_version="18", conf_profiles="ext_perf")
+
+        naptime = next(
+            item
+            for item in configurator.last_overrides
+            if item["parameter"] == "autovacuum_naptime"
+        )
+        self.assertEqual(
+            {
+                "parameter": "autovacuum_naptime",
+                "from": "base",
+                "value_from": "30s",
+                "to": "ext_perf",
+                "value_to": "15s",
+            },
+            naptime,
+        )
 
     def test_existing_output_file_is_preserved_as_a_timestamped_backup(self):
         with TemporaryDirectory() as directory:

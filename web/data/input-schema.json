@@ -1,6 +1,6 @@
 {
   "generator": "tools/export_web_data.py",
-  "package_version": "0.10.0",
+  "package_version": "0.11.0",
   "payload": {
     "counts": {
       "calculation": 35,
@@ -555,11 +555,11 @@
       {
         "action": "store",
         "choices": null,
-        "default": "4Mi",
+        "default": null,
         "default_source": "static",
         "dest": "peak_wal_rate",
         "form_field": true,
-        "help": "Expected peak WAL generation per second, (default: %(default)s)",
+        "help": "Expected peak WAL generation per second; 4Mi is assumed when not supplied",
         "hidden": false,
         "make_conf_parameter": "peak_wal_rate",
         "option_strings": [
@@ -627,7 +627,7 @@
         "default_source": "static",
         "dest": "min_conns",
         "form_field": true,
-        "help": "Min client connection, (default: %(default)s)",
+        "help": "Floor for the calculated max_connections, (default: %(default)s)",
         "hidden": false,
         "make_conf_parameter": "min_conns",
         "option_strings": [
@@ -644,7 +644,7 @@
         "default_source": "static",
         "dest": "max_conns",
         "form_field": true,
-        "help": "Max client connection, (default: %(default)s)",
+        "help": "Ceiling for the calculated max_connections; CPU count and backend memory decide the value inside it, (default: %(default)s)",
         "hidden": false,
         "make_conf_parameter": "max_conns",
         "option_strings": [
@@ -836,6 +836,6 @@
       "prefix_chars": "-"
     }
   },
-  "payload_digest": "sha256:73bc574ddea0059dc10956197a432a5bef2104660d33bb7a45b725c295d86f21",
+  "payload_digest": "sha256:d0386a9daaf1aae5bead44d6fe9004b47c1961680f31d68b87abffb39122b7e4",
   "schema_version": "pg_configurator/web-data-v1"
 }

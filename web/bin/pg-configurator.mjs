@@ -29,7 +29,7 @@ import { cpus, hostname, totalmem } from 'node:os';
 
 import { argumentsFromInputJson, CliError, parseArgs } from '../src/cli-args.js';
 import { createEnums } from '../src/configurator.js';
-import { makeConf } from '../src/make-conf.js';
+import { makeConf, unquotePostgresqlConfValue } from '../src/make-conf.js';
 import { sizeTo, SYS_IEC } from '../src/units.js';
 // The rendered file is the library's, so the CLI and an embedder cannot drift.
 import { renderConf } from '../index.mjs';
@@ -87,7 +87,7 @@ function stableStringify(value) {
 function patroniDocument(config) {
   const parameters = {};
   for (const [name, value] of Object.entries(config)) {
-    parameters[name] = String(value).replace(/^'|'$/g, '');
+    parameters[name] = unquotePostgresqlConfValue(value);
   }
   parameters.max_replication_slots = String(
     Math.max(4, Math.trunc(Number(parameters.max_replication_slots))),

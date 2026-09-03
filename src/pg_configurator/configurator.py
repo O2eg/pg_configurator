@@ -64,6 +64,74 @@ def sort_advisories(advisories):
     return sorted(advisories, key=lambda item: ADVISORY_SEVERITIES.index(item["severity"]))
 
 
+# What the WAL sizing assumes when nobody measured the peak. Kept out of the
+# make_conf signature so that a run can tell an assumption from a measurement
+# and say so, the way disk_score already does.
+ASSUMED_PEAK_WAL_RATE = "4Mi"
+
+
+def quote_postgresql_conf_value(value):
+    """Return one safe single-quoted value for ``postgresql.conf``.
+
+    PostgreSQL configuration strings escape a backslash by doubling it and a
+    quote by doubling that.  Line boundaries and NUL cannot be represented in
+    one assignment and must never be allowed to start a second setting.
+    """
+    text = str(value)
+    if any(character in text for character in ("\x00", "\r", "\n")):
+        raise ValueError(
+            "PostgreSQL configuration string values must not contain NUL or line breaks"
+        )
+    return "'{}'".format(text.replace("\\", "\\\\").replace("'", "''"))
+
+
+def unquote_postgresql_conf_value(value):
+    """Undo :func:`quote_postgresql_conf_value` for structured outputs."""
+    text = str(value)
+    if len(text) < 2 or not (text.startswith("'") and text.endswith("'")):
+        return text
+    body = text[1:-1]
+    result = []
+    index = 0
+    while index < len(body):
+        if body[index : index + 2] == "''":
+            result.append("'")
+            index += 2
+        elif body[index : index + 2] == "\\\\":
+            result.append("\\")
+            index += 2
+        else:
+            result.append(body[index])
+            index += 1
+    return "".join(result)
+
+
+# The grammar of synchronous_standby_names (syncrep_gram.y): an optional ANY or
+# FIRST, an optional count, and a parenthesised list; or a bare list, which is
+# FIRST 1 in priority order. Mirrored in the JavaScript port verbatim.
+_SYNCHRONOUS_STANDBY_PATTERN = re.compile(
+    r"^\s*(?:(?P<method>ANY|FIRST)\s+)?(?:(?P<num>\d+)\s*)?\(\s*(?P<names>[^()]*?)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+
+def parse_synchronous_standby_names(text):
+    """Return (method, num_sync, standby_names) for a synchronous_standby_names value.
+
+    ``method`` is ``"ANY"``, ``"FIRST"`` or None for the bare and count-only
+    forms, which PostgreSQL treats as FIRST. ``*`` comes back as a name.
+    """
+    match = _SYNCHRONOUS_STANDBY_PATTERN.match(text)
+    if match is None:
+        method, num_sync, names_text = None, 1, text
+    else:
+        method = match.group("method").upper() if match.group("method") else None
+        num_sync = int(match.group("num")) if match.group("num") else 1
+        names_text = match.group("names")
+    names = [name.strip().strip('"') for name in names_text.split(",") if name.strip()]
+    return method, num_sync, names
+
+
 class UnitConverter:
     #            kilobytes         megabytes        gigabytes       terabytes
     # PG         kB                MB               GB              TB
@@ -649,7 +717,7 @@ class PGConfigurator:
         conf_profiles=None,
         disk_score=None,
         work_mem_concurrency_factor=4.0,
-        peak_wal_rate="4Mi",
+        peak_wal_rate=None,
         replica_outage_tolerance=900,
         wal_disk_budget="32Gi",
         wal_segment_size="16Mi",
@@ -687,8 +755,18 @@ class PGConfigurator:
             raise ValueError("pitr_enabled must be a boolean")
         if not isinstance(synchronous_standby_names, str):
             raise ValueError("synchronous_standby_names must be a string")
+        if any(character in synchronous_standby_names for character in ("\x00", "\r", "\n")):
+            raise ValueError("synchronous_standby_names must not contain NUL or line breaks")
         if synchronous_standby_names.strip() and not replication_enabled:
             raise ValueError("synchronous_standby_names requires physical or logical replication")
+        sync_method, sync_required, sync_candidates = parse_synchronous_standby_names(
+            synchronous_standby_names
+        )
+        if sync_method is not None and pg_version == "9.6":
+            raise ValueError(
+                f"synchronous_standby_names uses {sync_method}, which PostgreSQL 10 introduced: "
+                "9.6 accepts a list of names, optionally preceded by a count"
+            )
         if not isinstance(common_conf, bool):
             raise ValueError("common_conf must be a boolean")
         if not common_conf:
@@ -831,6 +909,9 @@ class PGConfigurator:
         if database_size_in_bytes is not None and database_size_in_bytes <= 0:
             raise ValueError("db_size must be greater than 0")
 
+        peak_wal_rate_source = "explicit" if peak_wal_rate is not None else "default"
+        if peak_wal_rate is None:
+            peak_wal_rate = ASSUMED_PEAK_WAL_RATE
         peak_wal_rate_in_bytes = UnitConverter.size_from(
             peak_wal_rate, system=UnitConverter.sys_iec
         )
@@ -863,7 +944,8 @@ class PGConfigurator:
         if connection_capacity < min_conns:
             raise ValueError(
                 f"Backend memory reserve supports {connection_capacity} connections, "
-                f"less than min_conns={min_conns}"
+                f"less than min_conns={min_conns}: add RAM, lower min_conns, or shrink the "
+                "memory parts so that more headroom is left for backends"
             )
 
         connections_per_cpu = 5 if duty_db == DutyDB.OLTP else 4
@@ -1170,6 +1252,13 @@ class PGConfigurator:
             else 256
         )
         maintenance_io_concurrency = max(2, min(64, effective_io_concurrency // 2))
+        # Before 18 both settings are posix_fadvise read-ahead hints, and a
+        # Windows build has no posix_fadvise: it refuses any value but 0 at
+        # startup. 18 issues its own asynchronous I/O and lifts the restriction.
+        io_prefetch_available = platform != Platform.WINDOWS or get_major_version(pg_version) >= 18
+        if not io_prefetch_available:
+            effective_io_concurrency = 0
+            maintenance_io_concurrency = 0
         random_page_cost = round(4.0 - (disk_scores / 100) * 2.9, 2)
 
         if platform == Platform.WINDOWS:
@@ -1553,8 +1642,8 @@ class PGConfigurator:
                 rule["_source"] = "external"
             prepared_alg_set.extend(external_rules)
 
-        base_parameter_names = {
-            rule["name"]
+        base_parameter_rules = {
+            rule["name"]: rule
             for rule in PGConfigurator.prepare_alg_set(perf_alg_set, "conf_perf_base")[pg_version]
             if "name" in rule
         }
@@ -1700,26 +1789,12 @@ class PGConfigurator:
             },
         )
 
-        settings_metadata = self._load_setting_metadata(pg_version)
-        config_res = {}
-        parameter_details = {}
-        overrides = []
-        for param in prepared_alg_set:
-            if "name" not in param:
-                continue
+        def calculate_rule_value(param, source, evaluator):
             param_name = param["name"]
             rule_expression = param["alg"].strip() if "alg" in param else None
-            source = param.get("_source", "base")
-
-            debug_enabled = getattr(
-                self.args,
-                "debug",
-                getattr(self.args, "debug_mode", False),
-            )
-
             try:
                 raw_value = (
-                    param["const"] if "const" in param else rule_evaluator.evaluate(rule_expression)
+                    param["const"] if "const" in param else evaluator.evaluate(rule_expression)
                 )
             except (RuleEvaluationError, TypeError, ValueError, ZeroDivisionError) as error:
                 raise RuleEvaluationError(
@@ -1731,24 +1806,92 @@ class PGConfigurator:
             elif param.get("to_unit") == "as_is":
                 formatted_value = str(raw_value)
             elif param.get("to_unit") == "quote":
-                formatted_value = f"'{raw_value}'"
+                formatted_value = quote_postgresql_conf_value(raw_value)
             elif "alg" in param:
                 formatted_value = UnitConverter.size_to(
                     raw_value, system=UnitConverter.sys_pg, unit=param.get("to_unit")
                 )
             else:
                 formatted_value = str(raw_value)
+            return rule_expression, raw_value, formatted_value
+
+        base_parameter_values = {}
+        if selected_profiles:
+            base_rule_context = rule_context.copy()
+            base_rule_evaluator = RuleEvaluator(
+                base_rule_context,
+                allowed_callables={
+                    PGConfigurator.calc_synchronous_commit,
+                    UnitConverter.size_from,
+                    calc_client_mem_values,
+                    calc_connection_limit,
+                    calc_connection_scale,
+                    calc_cpu_scale,
+                    calc_disk_scale,
+                    calc_system_scores_scale,
+                    float,
+                    int,
+                    max,
+                    min,
+                    round,
+                },
+                allowed_attribute_roots={
+                    DiskType,
+                    DutyDB,
+                    PGConfigurator,
+                    Platform,
+                    ReplicationMode,
+                    UnitConverter,
+                },
+            )
+            for name, base_rule in base_parameter_rules.items():
+                _, raw_value, formatted_value = calculate_rule_value(
+                    base_rule, "base", base_rule_evaluator
+                )
+                base_parameter_values[name] = formatted_value
+                if name.isidentifier():
+                    base_rule_context[name] = raw_value
+
+        settings_metadata = self._load_setting_metadata(pg_version)
+        config_res = {}
+        parameter_details = {}
+        overrides = []
+        for param in prepared_alg_set:
+            if "name" not in param:
+                continue
+            param_name = param["name"]
+            source = param.get("_source", "base")
+
+            debug_enabled = getattr(
+                self.args,
+                "debug",
+                getattr(self.args, "debug_mode", False),
+            )
+
+            rule_expression, raw_value, formatted_value = calculate_rule_value(
+                param, source, rule_evaluator
+            )
 
             if param_name in parameter_details:
                 overrides.append(
                     {
                         "parameter": param_name,
                         "from": parameter_details[param_name]["source"],
+                        "value_from": parameter_details[param_name]["value"],
                         "to": source,
+                        "value_to": formatted_value,
                     }
                 )
-            elif source != "base" and param_name in base_parameter_names:
-                overrides.append({"parameter": param_name, "from": "base", "to": source})
+            elif source != "base" and param_name in base_parameter_values:
+                overrides.append(
+                    {
+                        "parameter": param_name,
+                        "from": "base",
+                        "value_from": base_parameter_values[param_name],
+                        "to": source,
+                        "value_to": formatted_value,
+                    }
+                )
 
             config_res[param_name] = formatted_value
             setting_context, context_source = self._setting_context(param_name, settings_metadata)
@@ -1992,7 +2135,11 @@ class PGConfigurator:
             + actual_max_connections * backend_memory_reserve_in_bytes
         )
         if memory_envelope_bytes > total_ram_in_bytes * 0.9:
-            raise ValueError("Calculated concurrent memory envelope exceeds 90% of available RAM")
+            raise ValueError(
+                "Calculated concurrent memory envelope exceeds 90% of available RAM: fewer CPU "
+                "cores, a lower work_mem_concurrency_factor or client_mem_part, or more RAM "
+                "brings it back inside"
+            )
 
         # --- advisories ------------------------------------------------------
         # Every line below reads config_res, the file this run will actually
@@ -2007,6 +2154,10 @@ class PGConfigurator:
             return ", ".join(f"{name}={config_res[name]}" for name in names)
 
         advisories = []
+        major_version = get_major_version(pg_version)
+        retention_setting = (
+            "wal_keep_size" if "wal_keep_size" in config_res else "wal_keep_segments"
+        )
 
         if shared_buffers_part >= 0.35:
             advisories.append(
@@ -2018,6 +2169,46 @@ class PGConfigurator:
                     "available RAM the same pages tend to be held twice, once here and once in "
                     "the kernel cache, and the second copy is the one that stops helping. The "
                     "0.35 threshold is this tool's, not a PostgreSQL limit.",
+                    setting="shared_buffers",
+                    actual=config_res["shared_buffers"],
+                )
+            )
+
+        shared_buffers_actual_bytes = UnitConverter.size_from(
+            config_res["shared_buffers"], system=UnitConverter.sys_pg
+        )
+        if shared_buffers_actual_bytes >= 8 * gibibyte:
+            huge_pages_text = (
+                f"shared_buffers={config_res['shared_buffers']} is mapped with the default "
+                "huge_pages=try, which falls back to 4kB pages without a word when none are "
+                "reserved; at this size every backend that walks the buffer pool builds page "
+                "tables of its own and TLB misses become query latency. "
+            )
+            if platform == Platform.WINDOWS:
+                huge_pages_text += (
+                    "On Windows large pages need the Lock pages in memory privilege for the "
+                    "service account, and huge_pages=on turns a missing grant into a startup "
+                    "error instead of a silent fallback."
+                )
+            else:
+                huge_pages_text += "Reserve vm.nr_hugepages before the server starts"
+                huge_pages_text += (
+                    ": postgres -C shared_memory_size_in_huge_pages -D <datadir> prints the "
+                    "exact count"
+                    if major_version >= 15
+                    else ", sized from the shared memory the server logs at startup plus a margin"
+                )
+                huge_pages_text += (
+                    ", and huge_pages_status shows after start whether the mapping succeeded."
+                    if major_version >= 17
+                    else "; huge_pages=on turns a failed reservation into a startup error "
+                    "instead of a silent fallback."
+                )
+            advisories.append(
+                advisory(
+                    "huge_pages_not_reserved",
+                    "assumption",
+                    huge_pages_text,
                     setting="shared_buffers",
                     actual=config_res["shared_buffers"],
                 )
@@ -2035,6 +2226,24 @@ class PGConfigurator:
                     "them. Supply disk_score from measured IOPS and latency to replace the "
                     "guess.",
                     actual=disk_scores,
+                )
+            )
+
+        if peak_wal_rate_source == "default":
+            wal_sizing_settings = [
+                name
+                for name in ("max_wal_size", "min_wal_size", "wal_keep_size", "wal_keep_segments")
+                if name in config_res and (replication_enabled or not name.startswith("wal_keep"))
+            ]
+            advisories.append(
+                advisory(
+                    "peak_wal_rate_assumed",
+                    "assumption",
+                    f"peak_wal_rate was not supplied, so a peak of {ASSUMED_PEAK_WAL_RATE} per "
+                    f"second is assumed. It sizes {settings_text(wal_sizing_settings)}, the "
+                    "settings most sensitive to it: measure the real peak (pg_current_wal_lsn "
+                    "deltas, pg_stat_wal from 14, or pg_diag) and pass it to replace the guess.",
+                    actual=ASSUMED_PEAK_WAL_RATE,
                 )
             )
 
@@ -2063,10 +2272,64 @@ class PGConfigurator:
             )
         )
 
-        if replication_enabled and desired_wal_keep_bytes > wal_keep_bytes:
-            retention_setting = (
-                "wal_keep_size" if "wal_keep_size" in config_res else "wal_keep_segments"
+        hash_factor_text = (
+            f"hash_mem_multiplier={config_res['hash_mem_multiplier']}"
+            if "hash_mem_multiplier" in config_res
+            else f"a hash factor of {hash_mem_multiplier}"
+        )
+        work_mem_exposure_bytes = (
+            actual_max_connections
+            * work_mem_bytes
+            * work_mem_concurrency_factor
+            * hash_mem_multiplier
+        )
+        if work_mem_exposure_bytes > ram_in_bytes:
+            advisories.append(
+                advisory(
+                    "work_mem_worst_case_exceeds_ram",
+                    "warning",
+                    f"work_mem={config_res['work_mem']} was sized for {actual_active_sessions} "
+                    f"active sessions, but max_connections={actual_max_connections} may all be "
+                    "busy at once: at "
+                    f"work_mem_concurrency_factor={work_mem_concurrency_factor} allocations each "
+                    f"and {hash_factor_text}, that is {size_text(work_mem_exposure_bytes)} of "
+                    f"query memory against {size_text(ram_in_bytes)} of RAM. A pooler that keeps "
+                    f"concurrency near {actual_active_sessions}, or a lower max_conns, is what "
+                    "keeps the worst case inside physical memory.",
+                    setting="work_mem",
+                    actual=config_res["work_mem"],
+                )
             )
+
+        if "profile_1c" not in selected_profiles:
+            cpu_connection_target = min_conns + (cpu_threads - 1) * connections_per_cpu
+            if actual_max_connections < cpu_connection_target and actual_max_connections in (
+                connection_capacity,
+                max_conns,
+            ):
+                connection_bound = (
+                    f"the memory budget, which holds {connection_capacity}"
+                    if actual_max_connections == connection_capacity
+                    else f"max_conns={max_conns}"
+                )
+                advisories.append(
+                    advisory(
+                        "max_connections_capped",
+                        "info",
+                        f"max_connections={actual_max_connections}: min_conns={min_conns} plus "
+                        f"{cpu_threads - 1} further CPU cores at {connections_per_cpu} "
+                        f"connections each ({duty_db.value} duty) would give "
+                        f"{cpu_connection_target}, and {connection_bound} is what holds it "
+                        "down. A connection costs backend memory whether or not it is busy, so "
+                        "a pooler in front of the database is what makes more of them "
+                        "affordable; add RAM to move the memory bound, or raise max_conns when "
+                        "that is the ceiling.",
+                        setting="max_connections",
+                        actual=actual_max_connections,
+                    )
+                )
+
+        if replication_enabled and desired_wal_keep_bytes > wal_keep_bytes:
             advisories.append(
                 advisory(
                     "wal_retention_capped",
@@ -2082,6 +2345,149 @@ class PGConfigurator:
                     "replica_outage_tolerance.",
                     setting=retention_setting,
                     actual=config_res[retention_setting],
+                )
+            )
+
+        desired_max_wal_size_bytes = peak_wal_rate_in_bytes * checkpoint_timeout_seconds * 2
+        if desired_max_wal_size_bytes > wal_disk_budget_in_bytes * 0.5:
+            seconds_at_peak = int(max_wal_size_bytes / peak_wal_rate_in_bytes)
+            advisories.append(
+                advisory(
+                    "max_wal_size_capped_by_wal_budget",
+                    "warning",
+                    "Two checkpoint intervals of WAL at "
+                    f"peak_wal_rate={size_text(peak_wal_rate_in_bytes)}/s come to "
+                    f"{size_text(desired_max_wal_size_bytes)}, more than the half of "
+                    "wal_disk_budget this tool lets max_wal_size have, so "
+                    f"max_wal_size={config_res['max_wal_size']} is what fits: about "
+                    f"{seconds_at_peak}s of peak writes against "
+                    f"checkpoint_timeout={config_res['checkpoint_timeout']}. Under sustained "
+                    "peak load checkpoints are then triggered by size, and each one restarts "
+                    "full-page writes, raising the WAL volume further. Raise wal_disk_budget, "
+                    "or lower peak_wal_rate if the peak was overstated.",
+                    setting="max_wal_size",
+                    actual=config_res["max_wal_size"],
+                )
+            )
+
+        if replication_enabled and "max_slot_wal_keep_size" not in config_res:
+            advisories.append(
+                advisory(
+                    "replication_slot_retention_unbounded",
+                    "warning",
+                    f"PostgreSQL {pg_version} has no max_slot_wal_keep_size, so with "
+                    f"max_replication_slots={config_res['max_replication_slots']} a slot whose "
+                    "consumer has gone keeps every WAL segment since its restart_lsn until "
+                    f"pg_wal fills the disk; {retention_setting}={config_res[retention_setting]} "
+                    "bounds only what is kept without a slot. Watch pg_replication_slots for "
+                    "inactive slots and drop the ones nobody will resume; PostgreSQL 13 adds "
+                    "the cap.",
+                    setting="max_replication_slots",
+                    actual=config_res["max_replication_slots"],
+                )
+            )
+
+        if (
+            synchronous_standby_names.strip()
+            and sync_candidates
+            and "*" not in sync_candidates
+            and sync_required >= len(sync_candidates)
+        ):
+            standby_text = (
+                "its only standby"
+                if len(sync_candidates) == 1
+                else f"every one of its {len(sync_candidates)} standbys"
+            )
+            standby_example = (
+                "FIRST 1 (s1, s2), or a quorum such as ANY 1 (s1, s2)"
+                if major_version >= 10
+                else "1 (s1, s2)"
+            )
+            advisories.append(
+                advisory(
+                    "synchronous_standbys_all_required",
+                    "warning",
+                    f"synchronous_standby_names={config_res['synchronous_standby_names']} needs "
+                    f"{standby_text} for every commit: with one of them unreachable, each commit "
+                    f"waits at synchronous_commit={config_res['synchronous_commit']} until it is "
+                    "back or a superuser lowers synchronous_commit on the fly. Name more "
+                    "standbys than the count that must answer, for example "
+                    f"{standby_example}.",
+                    setting="synchronous_standby_names",
+                    actual=config_res["synchronous_standby_names"],
+                )
+            )
+
+        if not replication_enabled and replica_count > 0:
+            advisories.append(
+                advisory(
+                    "replica_count_ignored",
+                    "info",
+                    f"replica_count={replica_count} was given with replication_mode=none, so it "
+                    f"changed nothing: max_wal_senders={config_res['max_wal_senders']} and "
+                    f"max_replication_slots={config_res['max_replication_slots']} are what a "
+                    "cluster without replicas gets. Ask for replication_mode=physical if "
+                    "standbys are planned.",
+                    setting="max_wal_senders",
+                    actual=config_res["max_wal_senders"],
+                )
+            )
+        elif (
+            replication_enabled
+            and effective_replica_count == 0
+            and effective_logical_subscriptions == 0
+        ):
+            advisories.append(
+                advisory(
+                    "replication_without_replicas",
+                    "info",
+                    f"replication_mode={replication_mode.value} with replica_count=0: "
+                    f"max_wal_senders={config_res['max_wal_senders']} and "
+                    f"max_replication_slots={config_res['max_replication_slots']} keep room for "
+                    "base backups and one unplanned standby, and "
+                    f"wal_level={config_res['wal_level']} stays ready. Set replica_count once "
+                    "the standbys are known so that their senders and slots are provisioned.",
+                    setting="max_wal_senders",
+                    actual=config_res["max_wal_senders"],
+                )
+            )
+
+        if config_res["wal_level"] == "logical":
+            logical_text = (
+                "wal_level=logical logs the replica identity of every updated or deleted row, "
+                "the whole old row where REPLICA IDENTITY FULL is set, so WAL volume follows "
+                "the write mix and not only this setting. "
+                f"max_replication_slots={config_res['max_replication_slots']} and "
+                f"max_wal_senders={config_res['max_wal_senders']} are sized for "
+                f"logical_subscription_count={effective_logical_subscriptions} and "
+                f"replica_count={effective_replica_count}."
+            )
+            if "logical_decoding_work_mem" in config_res:
+                logical_text += (
+                    " logical_decoding_work_mem="
+                    f"{config_res['logical_decoding_work_mem']} caps what a decoder holds "
+                    "before spilling to disk."
+                )
+            if major_version >= 17:
+                logical_text += (
+                    " Slots do not survive a failover on their own: PostgreSQL 17 adds failover "
+                    "slots with synchronized_standby_slots here and sync_replication_slots on "
+                    "the standby, all left to the deployment by this file."
+                )
+            if "idle_replication_slot_timeout" in config_res:
+                logical_text += (
+                    " idle_replication_slot_timeout="
+                    f"{config_res['idle_replication_slot_timeout']} invalidates a slot nobody "
+                    "consumes for that long, so a paused subscriber has to resume within it or "
+                    "be resynchronised."
+                )
+            advisories.append(
+                advisory(
+                    "logical_replication_provisioned",
+                    "info",
+                    logical_text,
+                    setting="wal_level",
+                    actual=config_res["wal_level"],
                 )
             )
 
@@ -2142,6 +2548,12 @@ class PGConfigurator:
             )
 
         if pitr_enabled:
+            incremental_backup_text = (
+                " PostgreSQL 17 can also take incremental base backups once summarize_wal=on, "
+                "which this file leaves off."
+                if major_version >= 17
+                else ""
+            )
             advisories.append(
                 advisory(
                     "pitr_transport_not_configured",
@@ -2150,7 +2562,7 @@ class PGConfigurator:
                     "part of point-in-time recovery a configuration file can supply. Base "
                     "backups, WAL archiving and the restore path are deployment work this tool "
                     "does not do: pg_stand is one way to arrange it, pgBackRest and barman are "
-                    "others.",
+                    "others." + incremental_backup_text,
                     setting="wal_level",
                     actual=config_res["wal_level"],
                 )
@@ -2248,6 +2660,25 @@ class PGConfigurator:
                     "that has already gone."
                 )
             advisories.append(advisory("windows_network_options_unavailable", "info", windows_text))
+            if not io_prefetch_available:
+                prefetch_settings = [
+                    name
+                    for name in ("effective_io_concurrency", "maintenance_io_concurrency")
+                    if name in config_res
+                ]
+                advisories.append(
+                    advisory(
+                        "windows_io_prefetch_unavailable",
+                        "info",
+                        f"{settings_text(prefetch_settings)}: before PostgreSQL 18 these are "
+                        "posix_fadvise read-ahead hints, Windows has no posix_fadvise, and a "
+                        "Windows server refuses any other value at startup. Bitmap heap scans "
+                        "read one block at a time here; PostgreSQL 18 issues its own "
+                        "asynchronous I/O and takes the disk-derived values again.",
+                        setting="effective_io_concurrency",
+                        actual=config_res["effective_io_concurrency"],
+                    )
+                )
 
         if database_size_in_bytes is None:
             advisories.append(
@@ -2413,6 +2844,52 @@ class PGConfigurator:
                     )
                 )
 
+        if config_res.get("wal_compression") == "pglz":
+            advisories.append(
+                advisory(
+                    "wal_compression_build_unknown",
+                    "assumption",
+                    "wal_compression=pglz is the one method every build carries. lz4 and zstd "
+                    "compress full-page images faster and smaller, but only a server built with "
+                    "--with-lz4 or --with-zstd accepts them, and nothing here knows how the "
+                    "target was built: where pg_config --configure lists the flag, set "
+                    "wal_compression=lz4, or zstd for the smaller output.",
+                    setting="wal_compression",
+                    actual=config_res["wal_compression"],
+                )
+            )
+
+        if "io_method" in config_res:
+            advisories.append(
+                advisory(
+                    "io_method_worker_assumed",
+                    "assumption",
+                    f"io_method={config_res['io_method']} with io_workers="
+                    f"{config_res['io_workers']}: PostgreSQL 18 runs asynchronous I/O through "
+                    "worker processes on every platform, while io_uring needs a build with "
+                    "--with-liburing and a kernel that permits it, neither of which this run "
+                    f"can see. The {config_res['io_workers']} workers serve every backend, and "
+                    f"effective_io_concurrency={config_res['effective_io_concurrency']} bounds "
+                    "the reads each backend keeps in flight; watch pg_stat_io before raising "
+                    "io_workers.",
+                    setting="io_method",
+                    actual=config_res["io_method"],
+                )
+            )
+
+        if config_res.get("jit") == "on":
+            advisories.append(
+                advisory(
+                    "jit_requires_llvm_build",
+                    "assumption",
+                    "jit=on takes effect only in a server built with --with-llvm; elsewhere the "
+                    "setting is accepted and silently does nothing. pg_config --configure, or "
+                    "pg_jit_available() in a session, says which build this is.",
+                    setting="jit",
+                    actual=config_res["jit"],
+                )
+            )
+
         advisories.append(
             advisory(
                 "csv_log_retention_is_external",
@@ -2444,6 +2921,7 @@ class PGConfigurator:
             "duty_db": duty_db.value,
             "logical_subscription_count": effective_logical_subscriptions,
             "peak_wal_rate_bytes_per_second": peak_wal_rate_in_bytes,
+            "peak_wal_rate_source": peak_wal_rate_source,
             "pitr_enabled": pitr_enabled,
             "pg_version": pg_version,
             "profiles": selected_profiles,
@@ -2842,7 +3320,10 @@ class PGConfigurator:
         )
         parser.add_argument(
             "--peak-wal-rate",
-            help="Expected peak WAL generation per second, (default: %(default)s)",
+            help=(
+                "Expected peak WAL generation per second; "
+                f"{ASSUMED_PEAK_WAL_RATE} is assumed when not supplied"
+            ),
             type=str,
             default=mca["peak_wal_rate"],
         )
@@ -2866,13 +3347,16 @@ class PGConfigurator:
         )
         parser.add_argument(
             "--min-conns",
-            help="Min client connection, (default: %(default)s)",
+            help="Floor for the calculated max_connections, (default: %(default)s)",
             type=int,
             default=mca["min_conns"],
         )
         parser.add_argument(
             "--max-conns",
-            help="Max client connection, (default: %(default)s)",
+            help=(
+                "Ceiling for the calculated max_connections; CPU count and backend memory "
+                "decide the value inside it, (default: %(default)s)"
+            ),
             type=int,
             default=mca["max_conns"],
         )
@@ -3220,14 +3704,16 @@ def _render_postgresql_conf(config, artifact):
         ),
     ]
     for item in artifact["advisories"]:
-        lines.append("# {}: {}".format(item["severity"].upper(), item["message"]))
+        message_lines = re.split(r"\r\n|[\r\n]", str(item["message"]))
+        lines.append("# {}: {}".format(item["severity"].upper(), message_lines[0]))
+        lines.extend(f"# {line}" for line in message_lines[1:])
     lines.append("")
     lines.extend("{} = {}".format(*item) for item in config.items())
     return "\n".join(lines) + "\n"
 
 
 def _patroni_document(config):
-    parameters = {key: value.strip("'") for key, value in config.items()}
+    parameters = {key: unquote_postgresql_conf_value(value) for key, value in config.items()}
     parameters["max_replication_slots"] = str(max(4, int(parameters["max_replication_slots"])))
     return {"postgresql": {"parameters": parameters}}
 

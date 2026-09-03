@@ -10,6 +10,8 @@ from pg_configurator.configurator import (
     Platform,
     ReplicationMode,
     UnitConverter,
+    quote_postgresql_conf_value,
+    unquote_postgresql_conf_value,
 )
 
 
@@ -409,6 +411,72 @@ class TestConfiguratorCore(unittest.TestCase):
         self.assertEqual("1024kB", pg18["io_max_combine_limit"])
         self.assertEqual("128kB", windows["io_combine_limit"])
         self.assertEqual("128kB", windows["io_max_combine_limit"])
+
+    def test_windows_before_18_writes_no_read_ahead_hints(self):
+        # Before 18 effective_io_concurrency and maintenance_io_concurrency are
+        # posix_fadvise hints; a Windows build has no posix_fadvise and refuses
+        # any value but 0 at startup. 18 issues its own asynchronous I/O.
+        for version in ("9.6", "12", "13", "17"):
+            with self.subTest(version=version):
+                windows = self.make_conf(
+                    pg_version=version, platform=Platform.WINDOWS, disk_type=DiskType.NVME
+                )
+                self.assertEqual("0", windows["effective_io_concurrency"])
+                if "maintenance_io_concurrency" in windows:
+                    self.assertEqual("0", windows["maintenance_io_concurrency"])
+                linux = self.make_conf(pg_version=version, disk_type=DiskType.NVME)
+                self.assertEqual("256", linux["effective_io_concurrency"])
+
+        windows_18 = self.make_conf(
+            pg_version="18", platform=Platform.WINDOWS, disk_type=DiskType.NVME
+        )
+        self.assertEqual("256", windows_18["effective_io_concurrency"])
+        self.assertEqual("64", windows_18["maintenance_io_concurrency"])
+
+    def test_synchronous_standby_keywords_follow_the_major(self):
+        # ANY and FIRST arrived in 10; 9.6 knows a bare list and a count.
+        for value in ("ANY 1 (a, b)", "first 1 (a)"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError) as caught:
+                    self.make_conf(pg_version="9.6", synchronous_standby_names=value)
+                self.assertIn("PostgreSQL 10 introduced", str(caught.exception))
+        self.assertEqual(
+            "'1 (a, b)'",
+            self.make_conf(pg_version="9.6", synchronous_standby_names="1 (a, b)")[
+                "synchronous_standby_names"
+            ],
+        )
+        self.assertEqual(
+            "'ANY 1 (a, b)'",
+            self.make_conf(pg_version="10", synchronous_standby_names="ANY 1 (a, b)")[
+                "synchronous_standby_names"
+            ],
+        )
+
+    def test_configuration_string_values_are_escaped_and_round_trip(self):
+        raw_value = r"standby'one\west"
+        encoded = quote_postgresql_conf_value(raw_value)
+
+        self.assertEqual(r"'standby''one\\west'", encoded)
+        self.assertEqual(raw_value, unquote_postgresql_conf_value(encoded))
+        self.assertEqual(
+            encoded,
+            self.make_conf(pg_version="18", synchronous_standby_names=raw_value)[
+                "synchronous_standby_names"
+            ],
+        )
+
+    def test_synchronous_standby_names_rejects_configuration_line_breaks_and_nul(self):
+        for separator in ("\n", "\r", "\x00"):
+            with self.subTest(separator=repr(separator)):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "synchronous_standby_names must not contain NUL or line breaks",
+                ):
+                    self.make_conf(
+                        pg_version="18",
+                        synchronous_standby_names=f"standby1'{separator}fsync = off",
+                    )
 
     def test_profile_1c_applies_transactional_planner_and_maintenance_contract(self):
         extensions = "auto_explain,online_analyze,pg_stat_statements,pg_store_plans,plantuner"

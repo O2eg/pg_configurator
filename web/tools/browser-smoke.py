@@ -36,6 +36,25 @@ def normalized_inputs(page):
     return inputs
 
 
+def generated_conf(page):
+    """The postgresql.conf mapping of the current result, from the artifact tab."""
+
+    active = page.locator("#tabs .pc-tab[aria-selected='true']").get_attribute("id")
+    page.evaluate("document.getElementById('tab-artifact').click()")
+    conf = json.loads(page.locator("#panel-artifact .pc-code").inner_text())["postgresql_conf"]
+    page.click(f"#{active}")
+    return conf
+
+
+def conf_seconds(value: str) -> int:
+    """A conf time such as 15min or 30s in seconds."""
+
+    for suffix, factor in (("min", 60), ("ms", 0), ("h", 3600), ("s", 1), ("d", 86400)):
+        if value.endswith(suffix):
+            return int(value.removesuffix(suffix)) * factor
+    return int(value)
+
+
 def fail(message: str) -> None:
     print(f"FAIL: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -134,8 +153,18 @@ def main() -> int:
 
         # --- the page renders a configuration on load ----------------------
         check(
+            page.evaluate(
+                """() => {
+                     const icon = document.querySelector('link[rel="icon"]');
+                     return Boolean(icon)
+                       && icon.getAttribute('href').startsWith('data:image/svg+xml');
+                   }"""
+            ),
+            "the PostgreSQL page icon is not embedded in the offline file",
+        )
+        check(
             page.locator("#tabs .pc-tab:visible > span:first-child").all_inner_texts()
-            == ["Main", "Calculation", "Advisories", "Overrides"],
+            == ["Main", "Calculation", "Advisories", "Overrides", "Diff"],
             "the page-wide tabs are in an unexpected order",
         )
         check(not page.locator("#tab-artifact").is_visible(), "Artifact is visible to the user")
@@ -467,6 +496,30 @@ def main() -> int:
             page.input_value("#field-disk_score") == "75",
             "disk-score is not parked on the score in force",
         )
+        check(
+            page.get_attribute("#readout-peak_wal_rate", "placeholder") == "4Mi",
+            "an empty peak WAL rate does not show the assumed rate",
+        )
+        check(
+            page.input_value("#field-peak_wal_rate") == "4",
+            "the empty peak WAL slider is not parked on the assumed rate",
+        )
+        fill("#readout-peak_wal_rate", "8Mi")
+        check(not page.locator("#error").is_visible(), "an explicit peak WAL rate was rejected")
+        check(
+            normalized_inputs(page)["peak_wal_rate_source"] == "explicit",
+            "an explicit peak WAL rate was recorded as an assumption",
+        )
+        fill("#readout-peak_wal_rate", "")
+        check(not page.locator("#error").is_visible(), "clearing peak WAL rate broke calculation")
+        check(
+            page.get_attribute("#readout-peak_wal_rate", "placeholder") == "4Mi",
+            "clearing peak WAL rate did not restore the assumed value",
+        )
+        check(
+            normalized_inputs(page)["peak_wal_rate_source"] == "default",
+            "a cleared peak WAL rate was not recorded as an assumption",
+        )
 
         # Profile names are the value of conf-profiles, so the list uses the
         # same value guide as neighbouring controls. At compact desktop widths
@@ -541,7 +594,9 @@ def main() -> int:
                    const cs = getComputedStyle(node);
                    probe.style.font = cs.font;
                    probe.textContent = node.placeholder;
-                   const inner = node.getBoundingClientRect().width
+                   // Hidden group panels have a zero bounding box, but their
+                   // fixed CSS width is still the width they get when opened.
+                   const inner = parseFloat(cs.width)
                      - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
                      - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth);
                    if (probe.getBoundingClientRect().width > inner) bad.push(node.placeholder);
@@ -775,6 +830,13 @@ def main() -> int:
             "user text was turned into markup",
         )
         fill("#field-synchronous_standby_names", "")
+        fill("#field-synchronous_standby_names", "standby'one")
+        check(not page.locator("#error").is_visible(), "a quoted standby name was rejected")
+        check(
+            generated_conf(page)["synchronous_standby_names"] == "'standby''one'",
+            "a quote in synchronous_standby_names was not escaped for postgresql.conf",
+        )
+        fill("#field-synchronous_standby_names", "")
 
         # --- theme: dark by default, like the pg_diag report -----------------
         check(
@@ -868,6 +930,101 @@ def main() -> int:
             page.locator("#panel-overrides .pc-tablewrap").count() == 1,
             "the overrides table is not wrapped the way the other tables are",
         )
+        override_headers = page.locator("#panel-overrides thead th").all_inner_texts()
+        check(
+            override_headers == ["Setting", "From", "Value From", "To", "Value To"],
+            f"the overrides table does not explain values before and after: {override_headers}",
+        )
+        naptime_cells = (
+            page.locator("#panel-overrides tbody tr")
+            .filter(has_text="autovacuum_naptime")
+            .locator("td")
+            .all_inner_texts()
+        )
+        check(
+            naptime_cells == ["autovacuum_naptime", "base", "30s", "profile_backend_perf", "15s"],
+            f"the overrides table does not show the naptime recalculation: {naptime_cells}",
+        )
+        page.click("#tab-main")
+
+        # --- a pasted configuration is compared after unit conversion --------
+        conf = generated_conf(page)
+        shared_kb = int(conf["shared_buffers"].removesuffix("MB")) * 1024
+        page.click("#tab-diff")
+        check(page.locator("#panel-diff #diff-input").count() == 1, "the Diff tab has no paste box")
+        check(
+            "Nothing pasted" in page.locator("#diff-results").inner_text(),
+            "an empty Diff tab does not say what to do",
+        )
+        page.fill(
+            "#diff-input",
+            "\n".join(
+                [
+                    "# a comment line",
+                    f"shared_buffers = {shared_kb}kB  # same value in another unit",
+                    "work_mem = '1GB'",
+                    "include 'extra.conf'",
+                    "some_unknown_setting = 1",
+                    f"random_page_cost = {conf['random_page_cost']}",
+                ]
+            ),
+        )
+        diff_rows = page.locator("#diff-results tbody tr")
+        check(
+            diff_rows.count() == 1 and "work_mem" in diff_rows.first.inner_text(),
+            "the Diff table does not list exactly the setting that differs",
+        )
+        check(
+            page.locator("#diff-results tbody tr").first.locator(".pc-apply").count() == 1,
+            "a differing setting does not say what applying it costs",
+        )
+        summary = page.locator("#diff-summary").inner_text()
+        for fragment in (
+            "Read as postgresql.conf",
+            "1 differ, 2 match",
+            "1 pasted settings this tool does not calculate",
+            "1 lines skipped",
+        ):
+            check(fragment in summary, f"the Diff summary lacks '{fragment}': {summary}")
+        check(
+            page.locator("#tab-diff .pc-count").inner_text() == "1",
+            "the Diff badge does not count the differences",
+        )
+
+        # pg_settings export with a header: bare numbers carry the unit column.
+        page.fill(
+            "#diff-input",
+            "\n".join(
+                [
+                    "name,setting,unit",
+                    f"shared_buffers,{shared_kb // 8},8kB",
+                    f"checkpoint_timeout,{conf_seconds(conf['checkpoint_timeout'])},s",
+                    "work_mem,1048576,kB",
+                ]
+            ),
+        )
+        summary = page.locator("#diff-summary").inner_text()
+        check(
+            "Read as CSV with a header row" in summary and "1 differ, 2 match" in summary,
+            f"a pg_settings export with a header is not read through its unit column: {summary}",
+        )
+
+        # Without a header a bare number is in the setting's own unit.
+        page.fill("#diff-input", f"shared_buffers,{shared_kb // 8}\nwork_mem,1048576\n")
+        summary = page.locator("#diff-summary").inner_text()
+        check(
+            "Read as CSV without a header row" in summary and "1 differ, 1 match" in summary,
+            f"a headerless export is not read in the snapshot's units: {summary}",
+        )
+        page.fill("#diff-input", "")
+        check(
+            "Nothing pasted" in page.locator("#diff-results").inner_text(),
+            "clearing the paste box does not clear the comparison",
+        )
+        check(
+            page.locator("#tab-diff .pc-count").inner_text() == "",
+            "the Diff badge survives clearing the paste box",
+        )
         page.click("#tab-main")
 
         # An exclusive profile is enforced by the control, not by an error.
@@ -914,8 +1071,8 @@ def main() -> int:
         select("#field-replication_mode", "physical")
 
         # --- output tabs -----------------------------------------------------
-        check(page.locator("#tabs .pc-tab:visible").count() == 4, "unexpected number of page tabs")
-        check(page.locator("#tabs .pc-tab").count() == 5, "the retained Artifact tab was removed")
+        check(page.locator("#tabs .pc-tab:visible").count() == 5, "unexpected number of page tabs")
+        check(page.locator("#tabs .pc-tab").count() == 6, "the retained Artifact tab was removed")
         check(
             page.locator(".pc-output-tabs .pc-output-tab").count() == 3,
             "unexpected number of Main output tabs",

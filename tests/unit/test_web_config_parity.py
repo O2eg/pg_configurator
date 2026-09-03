@@ -98,11 +98,32 @@ def valid_cases():
             synchronous_standby_names="ANY 1 (r1, r2)",
         ),
         _case("replication-logical-12", pg_version="12", replication_mode="logical"),
+        _case(
+            "replication-logical-17",
+            pg_version="17",
+            replication_mode="logical",
+            logical_subscription_count=2,
+        ),
+        # every standby named is required: one name, and a count equal to the list
+        _case("sync-single", pg_version="18", duty_db="financial", synchronous_standby_names="s1"),
+        _case("sync-all-required", pg_version="16", synchronous_standby_names="FIRST 2 (a, b)"),
+        _case("sync-count-only-96", pg_version="9.6", synchronous_standby_names="1 (a, b)"),
+        _case("sync-star", pg_version="18", synchronous_standby_names="*"),
+        _case(
+            "sync-special-name",
+            pg_version="18",
+            synchronous_standby_names=r"standby'one\west",
+        ),
+        _case("replication-physical-zero", pg_version="18", replica_count=0),
+        _case("replication-none-count", pg_version="18", replication_mode="none", replica_count=3),
+        _case("slots-unbounded-12", pg_version="12", replica_count=2),
     ]
     # platform, sizes and boundaries
     cases += [
         _case("platform-windows", pg_version="18", platform="WINDOWS"),
         _case("platform-windows-96", pg_version="9.6", platform="WINDOWS"),
+        _case("platform-windows-13", pg_version="13", platform="WINDOWS", disk_type="NVME"),
+        _case("platform-windows-17", pg_version="17", platform="WINDOWS", ram_value="64Gi"),
         _case("tiny", pg_version="18", cpu_cores="1", ram_value="1Gi", min_conns=5),
         _case("fractional-cpu", pg_version="18", cpu_cores="500m", ram_value="2Gi", min_conns=5),
         _case("millicores", pg_version="18", cpu_cores="2500m", ram_value="8Gi"),
@@ -111,6 +132,10 @@ def valid_cases():
         _case("db-size-medium", pg_version="18", db_size="500Gi"),
         _case("db-size-large", pg_version="18", db_size="4Ti"),
         _case("wal-tight", pg_version="18", wal_disk_budget="2Gi", peak_wal_rate="1Mi"),
+        _case("wal-peak-explicit-default", pg_version="18", peak_wal_rate="4Mi"),
+        _case("wal-peak-capped", pg_version="14", wal_disk_budget="8Gi", peak_wal_rate="50Mi"),
+        _case("conn-ceiling", pg_version="18", cpu_cores="64", ram_value="64Gi", max_conns=100),
+        _case("conn-memory-bound", pg_version="18", cpu_cores="24", ram_value="4Gi"),
         _case("wal-segment-64", pg_version="18", wal_segment_size="64Mi"),
         _case("wal-outage", pg_version="18", replica_outage_tolerance=7200),
         _case(
@@ -194,6 +219,13 @@ def invalid_cases():
         _case("exclusive-profile", pg_version="18", conf_profiles="profile_1c,ext_perf"),
         _case("1c-autovac", pg_version="18", conf_profiles="profile_1c", max_autovac_workers=3),
         _case("logical-on-96", pg_version="9.6", logical_subscription_count=2),
+        _case("sync-any-on-96", pg_version="9.6", synchronous_standby_names="ANY 1 (a, b)"),
+        _case("sync-first-on-96", pg_version="9.6", synchronous_standby_names="first 1 (a)"),
+        _case(
+            "sync-conf-injection",
+            pg_version="18",
+            synchronous_standby_names="standby1'\nfsync = off\n#",
+        ),
         _case(
             "logical-without-mode",
             pg_version="18",

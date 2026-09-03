@@ -28,6 +28,7 @@
   --pc-sp-2: 8px;
   --pc-sp-3: 12px;
   --pc-sp-4: 16px;
+  --pc-sp-5: 20px;
   --pc-sp-6: 24px;
   --pc-sp-12: 48px;
 }
@@ -758,6 +759,42 @@ body {
   border-color: var(--vw-accent);
 }
 
+/* The Diff tab's paste box: the text control geometry, tall and resizable. */
+.pc-diff-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  margin-bottom: var(--pc-sp-4);
+  padding: var(--pc-sp-2) var(--pc-sp-3);
+  border: 1px solid var(--vw-border);
+  border-radius: 10px;
+  background: var(--vw-input-bg);
+  color: var(--vw-fg);
+  font: inherit;
+  font-family: var(--pv-font-mono);
+  font-size: var(--pv-fs-sm);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.pc-diff-input:hover {
+  border-color: var(--vw-border-strong);
+}
+
+.pc-diff-input:focus {
+  outline: none;
+  border-color: var(--vw-accent);
+}
+
+.pc-diff-summary {
+  margin-bottom: var(--pc-sp-3);
+}
+
+.pc-diff-yours {
+  color: var(--vw-severity-warning);
+}
+
 .pc-list {
   margin: 0;
   padding: 0;
@@ -846,7 +883,7 @@ body {
    code a report can be keyed on, over the sentence that explains it. The left
    edge carries the severity so the three groups stay apart when scrolled. */
 .pc-advisory-heading {
-  margin: var(--pc-sp-5) 0 var(--pc-sp-2);
+  margin: var(--pc-sp-5) 0 var(--pc-sp-3);
   font-size: var(--pv-fs-sm);
   color: var(--vw-muted);
   text-transform: uppercase;

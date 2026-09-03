@@ -1,7 +1,7 @@
 {
   "name": "pg-configurator-web",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Browser and Node port of the pg-configurator calculation; the Python package in this repository is the reference implementation",
   "type": "module",
   "license": "MIT",
