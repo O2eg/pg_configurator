@@ -20,7 +20,7 @@ import {
 } from './make-conf.js';
 import { diffConfigurations, parseUserConfig } from './config-diff.js';
 import { createEnums } from './configurator.js';
-import { numberOf, PyNumber, pyStr, sizeTo, SYS_IEC } from './units.js';
+import { numberOf, PyNumber, pyStr, sizeFrom, sizeTo, SYS_IEC } from './units.js';
 
 /**
  * The input groups, in the order someone actually settles them.
@@ -536,7 +536,15 @@ export class ConfiguratorPage {
         item.value = choice;
         input.append(item);
       }
-      input.value = String(this.values[option.dest] ?? localChoices[0]);
+      const current = this.values[option.dest] ?? localChoices[0];
+      const displayed = formatInputValue(option.dest, current);
+      if (!localChoices.includes(displayed)) {
+        // Collected initdb sizes can be valid without being a common preset.
+        const item = el('option', null, displayed);
+        item.value = displayed;
+        input.append(item);
+      }
+      input.value = displayed;
     } else if (option.choices !== null) {
       input = el('select');
       for (const choice of option.choices) {
@@ -684,7 +692,16 @@ export class ConfiguratorPage {
     };
 
     const write = (value) => {
-      readout.value = value === null ? '' : String(value);
+      readout.value = formatInputValue(option.dest, value);
+      readout.removeAttribute('data-pc-tip');
+      if (spec.unit && value !== null && value !== '') {
+        try {
+          const bytes = numberOf(sizeFrom(value, SYS_IEC));
+          if (Number.isFinite(bytes)) readout.setAttribute('data-pc-tip', `Exact value used for calculation: ${bytes} B`);
+        } catch {
+          // Invalid input is explained by the calculation error, not a size tip.
+        }
+      }
       const numeric = sliderPosition(value, spec);
       if (numeric !== null) range.value = String(rangePosition(numeric, spec));
       showUnset();
@@ -701,6 +718,7 @@ export class ConfiguratorPage {
     readout.addEventListener('input', () => {
       const raw = readout.value.trim();
       this.values[option.dest] = raw === '' && spec.optional ? null : coerceReadout(raw, option);
+      readout.removeAttribute('data-pc-tip');
       const numeric = sliderPosition(this.values[option.dest], spec);
       if (numeric !== null) range.value = String(rangePosition(numeric, spec));
       this.calculate();
@@ -1170,8 +1188,19 @@ export class ConfiguratorPage {
     for (const item of rows) {
       const row = el('tr');
       row.append(el('td', null, item.name));
-      row.append(el('td', null, item.calculated));
-      row.append(el('td', 'pc-diff-yours', item.yours));
+      for (const [value, className] of [[item.calculated, null], [item.yours, 'pc-diff-yours']]) {
+        const cell = el('td', className);
+        if (item.name === 'shared_preload_libraries') {
+          const libraries = String(value).split(',');
+          libraries.forEach((library, index) => {
+            if (index > 0) cell.append(document.createElement('br'));
+            cell.append(document.createTextNode(library + (index < libraries.length - 1 ? ',' : '')));
+          });
+        } else {
+          cell.textContent = value;
+        }
+        row.append(cell);
+      }
       const apply = el('td');
       apply.append(el('span', `pc-apply pc-apply-${item.apply_mode}`, item.apply_mode));
       row.append(apply);
@@ -1279,6 +1308,22 @@ const round2 = (value) => Math.round(value * 100) / 100;
 
 const UNIT_BYTES = { Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
 
+/** Compact size readouts; the model retains the exact collected input. */
+export function formatInputValue(dest, value) {
+  if (value === null || value === undefined) return '';
+  const raw = String(value);
+  if (raw === '' || (!SLIDERS[dest]?.unit && dest !== 'wal_segment_size')) return raw;
+  try {
+    const bytes = numberOf(sizeFrom(value, SYS_IEC));
+    if (!Number.isFinite(bytes) || bytes < 0) return raw;
+    const [factor, unit] = SYS_IEC.find(([factor]) => bytes >= factor) ?? [1, ''];
+    return `${Number((bytes / factor).toFixed(2))}${unit || 'B'}`;
+  } catch {
+    // Preserve incomplete/invalid input so validation can explain it.
+    return raw;
+  }
+}
+
 /**
  * Render a size in the largest IEC unit that divides it exactly.
  *
@@ -1316,10 +1361,12 @@ function sliderPosition(value, spec) {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : null;
   }
-  const match = /^\s*(\d+(?:\.\d+)?)\s*(Ki|Mi|Gi|Ti)?\s*$/.exec(String(value));
-  if (match === null) return null;
-  const bytes = Number(match[1]) * (UNIT_BYTES[match[2] ?? spec.unit] ?? 1);
-  return bytes / UNIT_BYTES[spec.unit];
+  try {
+    const bytes = numberOf(sizeFrom(value, SYS_IEC));
+    return Number.isFinite(bytes) ? bytes / UNIT_BYTES[spec.unit] : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Render a slider position in the syntax the option expects. */

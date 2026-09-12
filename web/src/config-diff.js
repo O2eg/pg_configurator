@@ -22,6 +22,7 @@
  */
 
 import { numericValueInSettingUnits } from './make-conf.js';
+import { sizeTo, SYS_PG } from './units.js';
 
 const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.]*$/;
 const CONF_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_.]*)\s*(?:=\s*|\s+)(.*)$/;
@@ -85,33 +86,50 @@ export function parseConfText(text) {
   return { entries, skipped };
 }
 
-/** One delimited line into cells; double quotes wrap a cell, `""` is one quote. */
+/** Logical CSV records: embedded newlines belong to a quoted value. */
+function delimitedRecords(text) {
+  const records = [];
+  let start = 0;
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === '"') {
+      if (quoted && text[i + 1] === '"') i += 1;
+      else quoted = !quoted;
+    } else if ((text[i] === '\n' || text[i] === '\r') && !quoted) {
+      records.push(text.slice(start, i));
+      if (text[i] === '\r' && text[i + 1] === '\n') i += 1;
+      start = i + 1;
+    }
+  }
+  if (start < text.length) records.push(text.slice(start));
+  return records;
+}
+
+/** One logical record into cells; quoted whitespace is part of the value. */
 function splitDelimited(line, delimiter) {
   const cells = [];
   let cell = '';
   let quoted = false;
+  let wasQuoted = false;
+  const finish = () => {
+    cells.push(wasQuoted ? cell : cell.trim());
+    cell = ''; wasQuoted = false;
+  };
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if (quoted) {
       if (char === '"' && line[index + 1] === '"') {
-        cell += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        cell += char;
-      }
+        cell += '"'; index += 1;
+      } else if (char === '"') quoted = false;
+      else cell += char;
     } else if (char === '"') {
-      quoted = true;
-    } else if (char === delimiter) {
-      cells.push(cell);
-      cell = '';
-    } else {
-      cell += char;
-    }
+      quoted = true; wasQuoted = true;
+    } else if (char === delimiter) finish();
+    else cell += char;
   }
-  cells.push(cell);
-  return cells.map((item) => item.trim());
+  if (quoted) return null; // An incomplete record is not a partial setting.
+  finish();
+  return cells;
 }
 
 /** A pg_settings export, with or without a header row, into name → value. */
@@ -121,9 +139,10 @@ export function parseDelimitedText(text, delimiter) {
   let header = false;
   let columns = { name: 0, value: 1, unit: null };
   let first = true;
-  for (const rawLine of text.split(/\r?\n/)) {
+  for (const rawLine of delimitedRecords(text)) {
     if (!rawLine.trim()) continue;
     const cells = splitDelimited(rawLine, delimiter);
+    if (cells === null) { skipped += 1; continue; }
     if (first) {
       first = false;
       const lowered = cells.map((cell) => cell.toLowerCase());
@@ -156,12 +175,21 @@ export function parseDelimitedText(text, delimiter) {
 export function detectFormat(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim() && !line.trim().startsWith('#'));
   if (!lines.length) return { format: 'empty', delimiter: null };
+  // A named CSV header is stronger evidence than the contents of multiline
+  // values, which may themselves contain assignments or other delimiters.
+  for (const delimiter of DELIMITERS) {
+    const header = splitDelimited(lines[0], delimiter)?.map(cell => cell.toLowerCase());
+    if (header?.includes('name') && HEADER_VALUE_COLUMNS.some(name => header.includes(name))) {
+      return { format: 'csv', delimiter };
+    }
+  }
   const assignments = lines.filter((line) => /^\s*[A-Za-z_][A-Za-z0-9_.]*\s*=\s*\S/.test(line));
   if (assignments.length * 2 >= lines.length) return { format: 'conf', delimiter: null };
   let best = null;
+  const records = delimitedRecords(text).filter(record => record.trim());
   for (const delimiter of DELIMITERS) {
-    const count = lines.filter((line) => line.includes(delimiter)).length;
-    if (count * 2 >= lines.length && (best === null || count > best.count)) {
+    const count = records.filter(record => (splitDelimited(record, delimiter)?.length ?? 0) > 1).length;
+    if (count * 2 >= records.length && (best === null || count > best.count)) {
       best = { delimiter, count };
     }
   }
@@ -241,6 +269,36 @@ export function normalizeSettingValue(rawValue, sourceUnit, metadata) {
   }
 }
 
+/** Display current values in the calculated configuration's PostgreSQL units. */
+export function formatCurrentSettingValue(rawValue, sourceUnit, metadata) {
+  const raw = String(rawValue ?? '');
+  if (['string', 'enum', 'bool'].includes(metadata?.vartype)) return raw;
+  const match = NUMERIC_PATTERN.exec(stripSingleQuotes(raw.trim()));
+  if (match === null) return raw;
+  const amount = Number(match[1]);
+  const unit = match[2] || sourceUnit || metadata?.unit || '';
+  if (!Number.isFinite(amount) || !unit) return raw;
+  // Disabled, unlimited and automatic values are not negative durations/sizes.
+  if (amount <= 0) return String(amount);
+  try {
+    if (/^(us|ms|s|min|h|d)$/.test(unit)) {
+      for (const suffix of ['d', 'h', 'min', 's', 'ms', 'us']) {
+        const value = numericValueInSettingUnits(amount, unit, suffix);
+        if (value >= 1 && Number.isInteger(value)) return `${value}${suffix}`;
+      }
+      return `${match[1]}${unit}`;
+    }
+    const bytes = numericValueInSettingUnits(amount, unit, 'B');
+    // Reuse the engine's unit selection, but do not truncate collected values
+    // as sizeTo does when constructing an integer-valued candidate setting.
+    const suffix = sizeTo(bytes, SYS_PG).match(/[A-Za-z]+$/)?.[0] || 'B';
+    return `${numericValueInSettingUnits(bytes, 'B', suffix)}${suffix}`;
+  } catch {
+    // Unknown units or non-numeric/redacted values retain the original text.
+    return raw;
+  }
+}
+
 /**
  * The settings this run calculated that the pasted configuration sets to a
  * different value. `matching` counts agreement, `missing` the calculated
@@ -267,7 +325,7 @@ export function diffConfigurations(parameters, entries, metadata) {
     rows.push({
       name,
       calculated: detail.value,
-      yours: entry.unit ? `${entry.value} (${entry.unit})` : entry.value,
+      yours: formatCurrentSettingValue(entry.value, entry.unit, meta),
       apply_mode: detail.apply_mode,
       context: detail.context,
       source: detail.source,

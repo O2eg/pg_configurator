@@ -12,6 +12,7 @@ import { loadSettingMetadata } from '../src/make-conf.js';
 import {
   detectFormat,
   diffConfigurations,
+  formatCurrentSettingValue,
   normalizeSettingValue,
   parseUserConfig,
   unquoteConfValue,
@@ -160,11 +161,80 @@ test('the diff lists only the calculated settings the input sets differently', (
   assert.deepEqual(
     diff.rows.map((row) => [row.name, row.calculated, row.yours, row.apply_mode]),
     [
-      ['work_mem', '64MB', '4096 (kB)', 'reload'],
+      ['work_mem', '64MB', '4096kB', 'reload'],
       ['jit', 'on', 'off', 'reload'],
     ],
   );
   assert.equal(diff.matching, 1);
   assert.equal(diff.missing, 1, 'checkpoint_timeout is not in the input');
   assert.equal(diff.unknown, 1, 'port is not something this tool calculates');
+});
+
+
+test('CSV keeps multiline quoted settings, escaped quotes and significant whitespace', () => {
+  const value = '  first,"quoted"\r\nsecond\nthird;part\nlast  ';
+  const quote = text => '"' + text.replace(/"/g, '""') + '"';
+  const parsed = parseUserConfig('name,setting,unit\r\ncustom.extension,' + quote(value)
+    + ',\r\nshared_buffers,1024,8kB\r\nsynchronous_standby_names,"",');
+  assert.equal(parsed.entries.get('custom.extension').value, value);
+  assert.equal(parsed.entries.get('shared_buffers').unit, '8kB');
+  assert.equal(parsed.entries.get('synchronous_standby_names').value, '');
+  assert.equal(parsed.skipped, 0);
+  assert.equal(parsed.entries.size, 3);
+});
+
+test('an unterminated CSV record is skipped rather than importing a partial value', () => {
+  const parsed = parseUserConfig('name,setting,unit\nwork_mem,1024,kB\ncustom.extension,"partial\nvalue');
+  assert.equal(parsed.entries.size, 1);
+  assert.equal(parsed.skipped, 1);
+});
+
+
+test('headerless CSV is detected from logical records instead of physical lines', () => {
+  const parsed = parseUserConfig('custom.extension,"first\nsecond\nthird\nfourth",\nwork_mem,1024,kB');
+  assert.equal(parsed.format, 'csv');
+  assert.equal(parsed.entries.get('custom.extension').value, 'first\nsecond\nthird\nfourth');
+  assert.equal(parsed.skipped, 0);
+});
+
+test('current values use PostgreSQL size/time suffixes without changing their meaning', () => {
+  const cases = [
+    ['512', 'MB', null, '512MB'],
+    ['109696', '8kB', null, '857MB'],
+    ['175872', '8kB', null, '1374MB'],
+    ['58368', 'kB', null, '57MB'],
+    ['43008', 'kB', null, '42MB'],
+    ['2', '16MB', null, '32MB'],
+    ['12345', 'kB', null, '12.0556640625MB'],
+    ['12345', 'B', null, '12.0556640625kB'],
+    ['300', 's', null, '5min'],
+    ['10000', 'ms', null, '10s'],
+    ['100', 'ms', null, '100ms'],
+    ['750', 'ms', null, '750ms'],
+    ['1500000', 'us', null, '1500ms'],
+    ['0.5', 'ms', null, '500us'],
+    ['2', 'h', null, '2h'],
+    ['1.5GB', null, null, '1536MB'],
+    ['1024', null, METADATA.get('shared_buffers'), '8192kB'],
+  ];
+  for (const [raw, unit, meta, expected] of cases) {
+    const rendered = formatCurrentSettingValue(raw, unit, meta);
+    assert.equal(rendered, expected, `${raw} ${unit}`);
+    assert.equal(normalizeSettingValue(rendered, null, meta), normalizeSettingValue(raw, unit, meta));
+  }
+});
+
+test('sentinels have no suffix and text, counters, permission modes and redactions stay intact', () => {
+  for (const unit of ['ms', 's', 'B', 'kB', '8kB', 'MB']) {
+    assert.equal(formatCurrentSettingValue('-1', unit, null), '-1');
+    assert.equal(formatCurrentSettingValue('0', unit, null), '0');
+  }
+  assert.equal(formatCurrentSettingValue('-1', null, METADATA.get('log_min_duration_sample')), '-1');
+  assert.equal(formatCurrentSettingValue('-1ms', null, null), '-1');
+  assert.equal(formatCurrentSettingValue('0640', null, METADATA.get('log_file_mode')), '0640');
+  assert.equal(formatCurrentSettingValue('100', null, METADATA.get('max_connections')), '100');
+  assert.equal(formatCurrentSettingValue('[REDACTED]', 'B', null), '[REDACTED]');
+  assert.equal(formatCurrentSettingValue('/pglog', null, METADATA.get('log_directory')), '/pglog');
+  assert.equal(formatCurrentSettingValue('2', 'mystery', null), '2');
+  assert.equal(formatCurrentSettingValue('100', 'ms', {vartype: 'string'}), '100');
 });

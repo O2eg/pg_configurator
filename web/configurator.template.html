@@ -83,21 +83,24 @@ const toggle = document.getElementById('theme');
 const applyTheme = () => {
   document.documentElement.setAttribute('data-pv-theme', toggle.checked ? 'light' : 'dark');
 };
-toggle.addEventListener('change', () => {
-  applyTheme();
+// Embedded hosts own the theme; ignore this page's standalone preference.
+if (!document.documentElement.hasAttribute('data-pc-embedded')) {
+  toggle.addEventListener('change', () => {
+    applyTheme();
+    try {
+      localStorage.setItem('pgc-theme', toggle.checked ? 'light' : 'dark');
+    } catch {
+      // Storage can be unavailable; the toggle still works for this visit.
+    }
+  });
   try {
-    localStorage.setItem('pgc-theme', toggle.checked ? 'light' : 'dark');
+    const stored = localStorage.getItem('pgc-theme');
+    if (stored) toggle.checked = stored === 'light';
   } catch {
-    // Storage can be unavailable; the toggle still works for this visit.
+    // ignored, see above
   }
-});
-try {
-  const stored = localStorage.getItem('pgc-theme');
-  if (stored) toggle.checked = stored === 'light';
-} catch {
-  // ignored, see above
+  applyTheme();
 }
-applyTheme();
 </script>
 </body>
 </html>

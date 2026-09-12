@@ -634,13 +634,16 @@ def main() -> int:
             page.input_value("#readout-db_ram") == "1Ti",
             "1024 gibibytes of RAM is not written as 1Ti",
         )
-        # 1536Mi is a size and a half; promoting it would trade an exact number
-        # for a shorter one, so the unit must stay put.
+        # Compact units must preserve the exact size used by the calculation.
         drag("reserved_system_ram", 1536)
         check(
-            page.input_value("#readout-reserved_system_ram") == "1536Mi",
-            "a size that no larger unit divides was promoted anyway: "
+            page.input_value("#readout-reserved_system_ram") == "1.5Gi",
+            "1536 mebibytes is not written as 1.5Gi: "
             + page.input_value("#readout-reserved_system_ram"),
+        )
+        check(
+            normalized_inputs(page)["reserved_system_ram_bytes"] == 1536 * 1024**2,
+            "the compact size readout changed the exact calculation input",
         )
         drag("reserved_system_ram", 2048)
         check(

@@ -310,7 +310,8 @@ const SIZE_FACTORS = {
   TB: 1024 ** 4,
 };
 
-const TIME_FACTORS = { ms: 0.001, s: 1, min: 60, h: 3600, d: 86400 };
+// Integer microsecond factors avoid fractional arithmetic for exact conversions.
+const TIME_FACTORS = { us: 1, ms: 1000, s: 1_000_000, min: 60_000_000, h: 3_600_000_000, d: 86_400_000_000 };
 
 export function numericValueInSettingUnits(amount, sourceUnit, targetUnit) {
   if (!sourceUnit) return amount;

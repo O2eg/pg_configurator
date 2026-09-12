@@ -169,6 +169,10 @@ body {
   user-select: none;
 }
 
+[data-pc-embedded] .pc-theme-toggle {
+  display: none;
+}
+
 .pc-theme-toggle input {
   appearance: none;
   position: relative;
@@ -465,7 +469,7 @@ body {
 }
 
 .pc-readout {
-  width: 8ch;
+  width: calc(8ch + 22px);
   flex: 0 0 auto;
   padding: 5px 10px;
   border: 1px solid var(--vw-border);
