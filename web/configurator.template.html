@@ -13,6 +13,7 @@
 </head>
 <body class="pv">
 <div class="pc-wrap">
+  <div class="pc-error pc-error-quiet" id="error" role="alert"></div>
   <div class="pc-top">
     <div>
       <h1 class="pc-title">pg-configurator<small>Explainable, hardware-aware PostgreSQL configuration</small></h1>
@@ -57,9 +58,6 @@
     <div class="pc-actions" id="actions"></div>
   </div>
   <div id="panels"></div>
-  <!-- The form moves this into the Main panel, between the fields and the
-       settings they produce; it lives here only so the markup stays declarative. -->
-  <div class="pc-error pc-error-quiet" id="error" role="alert"></div>
 </div>
 
 <script type="application/json" id="pgc-rules">{}</script><!--PC:DATA-RULES-->

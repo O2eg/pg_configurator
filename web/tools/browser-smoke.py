@@ -760,30 +760,22 @@ def main() -> int:
         # --- invalid input reports without blanking the page ---------------
         page.click("#tab-main")
 
-        def form_top():
-            return page.evaluate(
-                "() => Math.round("
-                "document.querySelector('#panel-main .pc-section').getBoundingClientRect().top)"
-            )
-
-        settled = form_top()
         fill("#readout-db_ram", "32Zi")
         check(page.locator("#error").is_visible(), "an invalid size produced no error")
-        # The slot is reserved: a message may not shove the page around.
         check(
-            form_top() == settled,
-            f"the settings moved by {form_top() - settled}px when the message appeared",
+            page.locator("#error").evaluate("el => el.closest('[role=tabpanel]') === null"),
+            "the shared error banner is inside a tab panel",
         )
         error_text = page.locator("#error").inner_text()
         check("Unknown size unit" in error_text, f"unexpected error text: {error_text}")
         check(
             page.evaluate(
                 "() => Math.round("
-                "document.querySelector('#panel-main .pc-section').getBoundingClientRect().top"
+                "document.querySelector('.pc-top').getBoundingClientRect().top"
                 " - document.querySelector('#error').getBoundingClientRect().bottom)"
             )
             >= 8,
-            "the message sits flush against the settings below it",
+            "the error banner is not above the page header with a gap",
         )
         # A result the current input did not produce must not stay on offer.
         check(
@@ -806,14 +798,16 @@ def main() -> int:
             page.locator("#panel-calculation tbody tr").count() > 0,
             "the calculation was blanked as well",
         )
+        for tab in ("calculation", "advisories", "overrides", "diff", "main"):
+            page.click(f"#tab-{tab}")
+            check(page.locator("#error").is_visible(), f"the error disappeared on {tab}")
+            check(
+                page.locator("[role=alert]:visible").count() == 1,
+                f"the error banner is duplicated on {tab}",
+            )
 
-        page.click("#tab-main")
         fill("#readout-db_ram", "32Gi")
         check(not page.locator("#error").is_visible(), "the error stayed after a fix")
-        check(
-            form_top() == settled,
-            f"the settings moved by {form_top() - settled}px when the message went away",
-        )
         check(
             page.locator("#main-output-panel-settings tbody tr").count() > 100,
             "the settings table did not come back after a fix",

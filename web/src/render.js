@@ -198,7 +198,7 @@ const MAIN_OUTPUT_TABS = [
  */
 const HIDES_STALE_OUTPUT = new Set(['conf', 'settings', 'patroni', 'diff']);
 
-const STALE_NOTICE = 'Not shown while the input is invalid — see the message on the Main tab.';
+const STALE_NOTICE = 'Not shown while the input is invalid — see the message above.';
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -428,11 +428,6 @@ export class ConfiguratorPage {
     this.activeGroup ??= groupSlug(FIELD_GROUPS[0].title);
     this.syncGroups();
     panel.append(form);
-
-    // The message belongs with the fields that cause it, not above the tab row:
-    // it reports on the values just entered, and it sits directly over the
-    // settings it is suppressing.
-    panel.append(this.errorBox);
 
     // Deployable output sits right below the form. These views share the same
     // calculation and stay inside Main so changing an input and copying its
@@ -833,9 +828,7 @@ export class ConfiguratorPage {
   }
 
   renderError() {
-    // The box keeps its place whether or not it says anything: hiding it
-    // outright made every panel below jump on each keystroke that fixed or
-    // broke the input.
+    // The shared banner stays visible when switching between tabs.
     this.errorBox.textContent = this.error ?? '';
     this.errorBox.classList.toggle('pc-error-quiet', this.error === null);
     for (const [, node] of this.fieldNodes) node.wrap.classList.remove('pc-invalid');

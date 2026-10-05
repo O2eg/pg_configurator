@@ -889,7 +889,7 @@ const result = pgc.generate({ cpu_cores: 8, ram_value: '16Gi', pg_version: '18' 
 
 result.config.shared_buffers;                    // '3622MB'
 result.advisories.filter((a) => a.severity === 'warning');
-renderConf(result, { version: '0.11.0', host: 'db-1' });
+renderConf(result, { version: '0.11.1', host: 'db-1' });
 ```
 
 `createConfigurator()` reads the bundled rule data from disk, which needs Node.
@@ -959,7 +959,7 @@ python -m twine check dist/*
 ```
 
 Tagged releases are built and published through PyPI Trusted Publishing. A tag
-must match the package version, for example `v0.11.0`.
+must match the package version, for example `v0.11.1`.
 
 ## License and provenance
 

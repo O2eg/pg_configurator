@@ -591,11 +591,7 @@ body {
 /* ---------------------------------------------------------------- output */
 
 .pc-error {
-  /* The message sits between the fields and the settings, so it needs air on
-     both sides. `.pc-form` ends flush with its last group, contributing no
-     bottom margin of its own, and the gap below collapses to the section's
-     own top margin — so both sides are set to the same step here. */
-  margin: var(--pc-sp-6) 0 var(--pc-sp-4);
+  margin: 0 0 var(--pc-sp-4);
   padding: 10px 14px;
   border: 1px solid var(--vw-border-strong);
   border-radius: 10px;
@@ -605,14 +601,10 @@ body {
   font-size: var(--pv-fs-sm);
   line-height: 1.5;
   white-space: pre-wrap;
-  /* One line of text plus the padding and border above and below it. The slot
-     is held open whether or not there is a message, so the panels below do not
-     move as input goes in and out of range. Box-sizing is border-box here. */
-  min-height: calc(1.5em + 22px);
 }
 
 .pc-error-quiet {
-  visibility: hidden;
+  display: none;
 }
 
 .pc-code {
